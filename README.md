@@ -17,8 +17,10 @@ This repository implements a skeleton repository for teams to use when first get
 	
 
 2. Existing Resources 
-
-		Although working on a Greenfield project is rare, this template assumes a clean starting plate. Time permitting, I hope to discuss how to use this template when moving existing infrastructure to Terraform.
+	
+	Although working on a Greenfield project is rare, this template assumes a clean starting plate. 
+	Time permitting, I hope to discuss how to use this template when moving existing infrastructure to 
+	Terraform.
 
 
 
