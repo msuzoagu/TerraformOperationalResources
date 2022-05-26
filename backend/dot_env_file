@@ -1,0 +1,14 @@
+LT=
+LB=
+SB=
+PROJECT=
+AWS_REGION=
+STACK_NAME=
+AWS_PROFILE=
+HOSTNAME=localhost
+BackendRoleName=
+TRUSTED_ACCOUNT=
+TRUSTING_ACCOUNT=
+BackendPolicyName=
+PrincipalTagKey=
+PrincipalTagValue=
