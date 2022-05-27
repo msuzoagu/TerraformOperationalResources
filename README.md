@@ -1,4 +1,3 @@
-# New Document
 # Terraform Backend Resources
 This repository implements a skeleton repository for teams to use when first getting started with terraform. It uses Cloudformation as a workflow tool. 
 
