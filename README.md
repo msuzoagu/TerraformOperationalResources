@@ -31,12 +31,12 @@ This repository implements a skeleton repository for teams to use when first get
 2. An AWS User with: 
 	- Administrative access in the [trusting account](https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_cross-account-with-roles.html) - this is the user who will, via Cloudformaion, deploy/create the Terraform backend resources
 
-3). Values for `.env` in **BackendResources**, **Group** and **RoleAndPolicies** directories
+3). Values for `.env` in **_BackendResources_**, **_Group_** and **_RoleAndPolicies_** directories
 		
 
 ## How Things Work
 1. First create your backend role: 
-	- **RoleAndPolicies/role.cf.yaml** creates the following: 
+	- **RoleAndPolicies/_role.cf.yaml_** creates the following: 
 		
 		- A role assumable by users in a trusted account. Users who assume this role are granted permissions needed to work with Terraform Backend resources. 
 
@@ -44,14 +44,14 @@ This repository implements a skeleton repository for teams to use when first get
 
 
 2. Next create the backend resources: 
-	- **BackendResources/backend.cf.yaml** creates the following: 
+	- **BackendResources/_backend.cf.yaml_** creates the following: 
 		- StateBucket (and its bucket policy)
 		- LogBucket
 		- LockTable
 	These are the operational resources needed to get started with Terraform. 
 
 3. Finally create a group: 
-	- **Group/group.cf.yaml** creates a group and attaches a policy that permits members of the group to assume the role created in the trusting account
+	- **Group/_group.cf.yaml_** creates a group and attaches a policy that permits members of the group to assume the role created in the trusting account
 
 
 ## Getting Started
