@@ -1,0 +1,3 @@
+*.env
+**/error.txt
+**/error.text

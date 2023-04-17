@@ -1,0 +1,90 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create Terraform related group and policies
+Metadata: 
+  AWS::Cloudformation::Interface: 
+    ParameterGroups: 
+      - Label: 
+          default: contains resources and role
+        Parameters: 
+          - RoleName
+          - TrustingAccount
+          - NameOfTrustingAccount
+      - Label: 
+          default: create groups and policies in this account
+        Parameters: 
+          - GroupName
+          - TrustedAccount
+          - PermissionPolicyName          
+Parameters: 
+  RoleName: 
+    Type: String
+    Description: |
+      role in TrustingAccount that 
+      is assumable by users in 
+      TrustedAccount group. Users must
+      have correct TagKey and Tagvalue   
+  TrustingAccount:
+    Type: String
+    Description: |
+    grants access to 
+    terraformbackend resources      
+  NameOfTrustingAccount:
+    Type: String
+    Description: |
+    Name of TrustingAccount    
+  GroupName:
+    Type: String
+    Description: |
+      group allowed to read from and 
+      write to terraform backend resources 
+      that are in TrustingAccount
+  TrustedAccount:
+    Type: String
+    Description: |
+      users in TrustedAccount are able to assume 
+      TerraformBackendRole in TrustingAccount
+  PermissionPolicyName:
+    Type: String
+    Description: |
+    Name of the permission policy 
+    attached to group               
+Rules: 
+  EnsureDeployingToCorrectAccount: 
+    Assertions: 
+      - Assert: !Equals 
+          - !Ref AWS::AccountId
+          - !Ref TrustedAccount
+        AssertDescription: 'Stack must be deployed in the specified aws account'
+Resources: 
+  #############################################
+  # create group for terraform admins         #
+  # - users in this group are able to read    #
+  #   from and write to terraform state files #
+  #############################################
+  Group: 
+    Type: 'AWS::IAM::Group'
+    Properties: 
+      GroupName: !Sub "${GroupName}"
+      ManagedPolicyArns: 
+        - !Ref PermissionsPolicy
+
+  ###########################################
+  # create policy that grants group members #
+  # permission to assume TerraformBackRole  #
+  ###########################################
+  PermissionsPolicy: 
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      ManagedPolicyName: !Sub "${PermissionPolicyName}"
+      Description: !Sub "grant permission to assume terraform backend role in ${NameOfTrustingAccount}"
+      PolicyDocument: 
+        Version: 2012-10-17
+        Statement: 
+          - Sid: AssumeTerraformBackendRole
+            Effect: Allow
+            Action: 
+              - 'sts:AssumeRole'
+            Resource: 
+              # make sure this role exists in the trusting account
+              - !Sub "arn:aws:iam::${TrustingAccount}:role/terraform/${RoleName}"                   
