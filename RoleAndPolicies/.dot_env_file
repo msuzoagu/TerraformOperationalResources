@@ -1,20 +1,19 @@
-AwsRegion=
-AwsProfile=
+LB=
+LT=
+SB=
 
 Env=
 Project=
+RoleName=
 
 TagKey=
 TagValue=
 
-LB=logBucket
-LT=lockTable
-SB=stateBucket
-
-TrustedAccount=
-NameOfTrustedAccount=
-
-RoleName=
+AwsRegion=
+AwsProfile=
 
 TrustingAccount=
 NameOfTrustingAccount=
+
+TrustedAccount=
+NameOfTrustedAccount=
