@@ -1,6 +1,7 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Create Terraform State Operational Resources for **SOME AWS ACCOUNT**
+Description: |
+  create associated terraform backend resources for TerraformAdminRole
 Metadata:
   AWS::Cloudformation::Interface:
     ParameterGroups: 
@@ -14,122 +15,62 @@ Metadata:
         Parameters: 
           - TrustedAccount          
       - Label: 
-          default: tf backend resources for **SOME AWS ACCOUNT**
+          default: terraform backend resources for **enviroment-projectname**
         Parameters:
-          - BackendRoleName
-          - PrincipalTagKey
-          - PrincipalTagValue
-          - TerraformLogBucket
-          - TerraformLockTable
-          - TerraformStateBucket
+          - TagKey
+          - TagVal
+          - Region
+          - RoleName
+          - LockTable
+          - LogBucket
+          - StateBucket
+          - TrustedAccount
+          - TrustingAccount
 Parameters:
+  TagKey:
+    Type: String
+    Description: |
+      Principal Tag Key      
+  TagVal:  
+    Type: String
+    Description: |
+      Principal Tag Key          
   Region:
     Type: String
     Description: |
-      Region where terraform Dynamodb lock table is created
-  TrustedAccount:
+      Region where resorces are created    
+  RoleName: 
     Type: String
     Description: |
-      Given access to resouces in trusting account        
+      Name of role used to access terraform backend resources     
+  LockTable: 
+    Type: String
+    Description: |
+      Name of the terraform DynamoDB lock table  
+  LogBucket: 
+    Type: String
+    Description: |
+      Name of the S3 bucket for terraform state logs                        
+  StateBucket: 
+    Type: String
+    Description: |
+      Name of the S3 bucket for terraform state  
   TrustingAccount:
     Type: String
     Description: |
-      Resources are created here
-  BackendRoleName: 
-    Type: String
-    Description: | 
-      Name of role used to access terraform backend resources      
-  TerraformLogBucket: 
+      Resources are created here              
+  TrustedAccount:
     Type: String
     Description: |
-      Name of the S3 bucket for terraform state logs               
-  TerraformLockTable: 
-    Type: String
-    Description: |
-      Name of the terraform DynamoDB lock table
-  TerraformStateBucket: 
-    Type: String
-    Description: |
-      Name of the S3 bucket for terraform state        
+      Has access to resouces in trusting account        
 Rules:
   EnsureDeployingToCorrectAccount:
     Assertions:
       - Assert: !Equals
           - !Ref AWS::AccountId
           - !Ref TrustingAccount
-        AssertDescription: 'Stack can only be deployed into the specified aws account'
-
+        AssertDescription: 'Stack must be deployed in the specified aws account'
 Resources: 
-  ###################################################
-  # Create Role                                     #
-  # - only users with                               #
-  #   - tag key == ${PrincipalTagKey}               #
-  #   - tag value == ${PrincipalTagValue}           #
-  ###################################################
-  Role:
-    Type: 'AWS::IAM::Role'    
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:         
-          - Effect: Allow
-            Principal:
-              AWS: !Ref TrustedAccount
-            Action: 
-              - 'sts:AssumeRole'
-            Condition:
-              StringEquals: 
-                aws:PrincipalType: User
-              StringLike:
-                "aws:PrincipalTag/${PrincipalTagKey}": "${PrincipalTagValue}"
-      Description: |
-        users with tag key and value specified in
-        the trusted account can assume this role
-      RoleName: !Sub "${BackendRoleName}"
-      Path: /terraform/
-      ManagedPolicyArns:
-        - !Ref TerraformStatePolicy
-  
-  ##############################################
-  # Create ReadWrite Policy ONLY
-  # Ability to delete bucket is not included
-  ##############################################                
-  TerraformStatePolicy:
-    Type: 'AWS::IAM::ManagedPolicy'
-    Properties: 
-      ManagedPolicyName: !Sub "${BackendPolicyName}"
-      Path: /terraform/
-      Description: grant access using permissions listed in this policy
-      PolicyDocument:
-        Version: 2012-10-17
-        # Permissions are based on:
-        # https://www.terraform.io/docs/backends/types/s3.html#example-configuration
-        Statement:
-          - Sid: AllowStateBucketList
-            Effect: Allow
-            Action:
-              - 's3:ListBucket'
-              - 's3:GetBucketVersioning'
-            Resource: 
-              - !Sub "arn:aws:s3:::${TerraformStateBucket}"          
-          - Sid: AllowStateReadWrite
-            Effect: Allow
-            Action:
-              - 's3:GetObject'
-              - 's3:PutObject'
-            Resource: 
-              - !Sub "arn:aws:s3:::${TerraformLogBucket}/*" 
-          - Sid: AllowStateLockReadWrite
-            Effect: Allow
-            Action:
-              - 'dynamodb:DescribeTable'
-              - 'dynamodb:GetItem'
-              - 'dynamodb:PutItem'
-              - 'dynamodb:DeleteItem'   
-            Resource: 
-              - !Sub "arn:aws:dynamodb:${Region}:${TrustingAccount}:table/${TerraformLockTable}"
-
-  
   ##############################
   # Create Terraform Resources #
   ##############################
@@ -138,7 +79,7 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
     Properties:
-      BucketName: !Ref TerraformLogBucket
+      BucketName: !Ref LogBucket
       AccessControl: LogDeliveryWrite
       BucketEncryption:
         ServerSideEncryptionConfiguration:
@@ -155,7 +96,7 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
     Properties:
-      TableName: !Ref TerraformLockTable
+      TableName: !Ref LockTable
       AttributeDefinitions:
         - AttributeName: LockID
           AttributeType: S
@@ -169,14 +110,14 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
     Properties:
-      BucketName: !Ref TerraformStateBucket
+      BucketName: !Ref StateBucket
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: aws:kms
       LoggingConfiguration:
-        DestinationBucketName: !Ref TerraformLogBucket
-        LogFilePrefix: TfStateLogs/
+        DestinationBucketName: !Ref LogBucket
+        LogFilePrefix: TerraformStateLogs/
       PublicAccessBlockConfiguration:
         BlockPublicAcls: True
         BlockPublicPolicy: True
@@ -219,7 +160,7 @@ Resources:
           ####################
           
           #####################################################
-          #deny access to users lacking ${PrincipalTagKey} Tag#
+          #    deny access to users lacking TagKey TagVal     #
           #####################################################
           - Sid: DenyAccess2NonTerrformbackendUsers
             Effect: Deny
@@ -231,7 +172,7 @@ Resources:
               StringEquals:
                 aws:PrincipalType: User
               StringNotLike:
-                "aws:PrincipalTag/${PrincipalTagKey}": "*"
+                "aws:PrincipalTag/${TagKey}": "*"
             Resource:
               - !GetAtt "StateBucket.Arn"
               - !Sub
@@ -239,8 +180,8 @@ Resources:
                 - Bucket: !GetAtt "StateBucket.Arn"
 
           ###############################################
-          # grant read/write acccess to user w/tag of   #
-          # ${PrincipalTagKey}and key ${PrincipalTagKey}#
+          #    grant read/write acccess to user with    #
+          #    matching TagKey and TagVal               #
           ###############################################
           - Sid: GrantAccess2TerrformbackendUsers
             Effect: Allow
@@ -265,7 +206,7 @@ Resources:
               StringEquals:
                 aws:PrincipalType: User
               StringLike:
-                "aws:PrincipalTag/${PrincipalTagKey}": "${PrincipalTagValue}"   
+                "aws:PrincipalTag/${TagKey}": "${TagVal}"   
             Resource:
               - !GetAtt "StateBucket.Arn"
               - !Sub
@@ -280,8 +221,8 @@ Resources:
           ####################
 
           #############################################
-          # If principal is an assumed role & role is #
-          # not ${BackendRoleName}, deny access       #
+          #    If principal is an assumed role but    #
+          #    role is not ${RoleName}, deny access   #
           #############################################
           - Sid: DenyAccess2NonTerraformBackendRole
             Effect: Deny
@@ -304,8 +245,8 @@ Resources:
                 - Bucket: !GetAtt "StateBucket.Arn"  
 
           ##################################################
-          # if principal is an assumed IAM role and role   #
-          # is ${BackendRoleName}, grant read/write access #
+          #    if principal is an assumed IAM role and     #
+          #    role is RoleName, grant read/write access   #
           ##################################################
           - Sid: AssumeRoleReadWrite
             Effect: Allow

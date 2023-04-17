@@ -31,23 +31,27 @@ This repository implements a skeleton repository for teams to use when first get
 2. An AWS User with: 
 	- Administrative access in the [trusting account](https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_cross-account-with-roles.html) - this is the user who will, via Cloudformaion, deploy/create the Terraform backend resources
 
-4). Values for `.env` in **backend** and **policies** directories
+3). Values for `.env` in **_BackendResources_**, **_Group_** and **_RoleAndPolicies_** directories
 		
 
 ## How Things Work
-1. First create the backend resources: 
+1. First create your backend role: 
+	- **RoleAndPolicies/_role.cf.yaml_** creates the following: 
+		
+		- A role assumable by users in a trusted account. Users who assume this role are granted permissions needed to work with Terraform Backend resources. 
 
-	- **_backend/backend.cf.yaml_** creates the following backend resources: 
-		- a role: permits users in the trusted account with the correct **tag key** and **tag value** to access to resources in the trusting account
+		- the policy attached to the role permits users who assume said role access to the resources listed in the policy
 
-		- a policy: attached to the role above. It permits users who can the assume said role access to the resources listed in the policy
 
-			- a terraform state bucket 
-			- a terraform state log bucket 
-			- a terraform dynamodb lock table
+2. Next create the backend resources: 
+	- **BackendResources/_backend.cf.yaml_** creates the following: 
+		- StateBucket (and its bucket policy)
+		- LogBucket
+		- LockTable
+	These are the operational resources needed to get started with Terraform. 
 
-2. We want to make it easy for multiple users to assume the role created in the trusting account, thus: 
-	- **_policies.cf.yaml_** creates a group and attaches a policy that permits members of the group to assume the role created in the trusting account.
+3. Finally create a group: 
+	- **Group/_group.cf.yaml_** creates a group and attaches a policy that permits members of the group to assume the role created in the trusting account
 
 
 ## Getting Started
@@ -60,11 +64,14 @@ This repository implements a skeleton repository for teams to use when first get
 
 
 ### Usage
-1. cd into _backend.cf.yaml_ directory and run `make backend-dry-run` for test run. 
+1. cd into _BackendResources_ directory and run `make dry-run` for test run. 
 
-	i. If satisfied with values printed out, run `make backend` to create/deploy resources 
+	i. if satisfied with values printed out, run `make backend` to create backend resources 
 
-2. cd into _policies.cf.yaml_ directory and run `make policies-dry-run` for test run. 
+2. cd into _RoleAndPolicies_ directory and run `make dry-run` for test run. 
 
-	i. If satisfied with values printed out, run `make policies` to create/deploy resources 
+	i. if satisfied with values printed out, run `make role` to create role 
  
+3. cd into _Group_ directory and run `make dry-run` for test run. 
+
+	i. if satisfied with values printed out, run `make group` to create group
