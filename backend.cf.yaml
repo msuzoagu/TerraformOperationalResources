@@ -1,0 +1,334 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create Backend for Terraform Operational Resources 
+Metadata: 
+  AWS::Cloudformation::Interface: 
+    ParameterGroups:
+      - Label: 
+          default: Trusted Account Config
+        Parameter:
+          - ResourceAccessor
+      - Label: 
+          default: Shared Config
+        Parameter:
+          - Group1UserTagValue
+          - Group2UserTagValue
+      - Label: 
+          default: Trusting Account Config
+        Parameters:
+          - ResourceOwner
+          - RoleName
+          - Region
+          - LogBucketName
+          - LockTableName
+          - StateBucketName
+          - RolePermissionPolicyName
+Parameters:
+  ResourceAccessor:
+    Type: String
+    Description: resource accessor is the trusted account
+  Group1UserTagValue:
+    Type: String
+  Group2UserTagValue:
+    Type: String  
+  ResourceOwner:
+    Type: String
+    Description: resource owner is the trusting account
+  RoleName:
+    Type: String
+  Region:
+    Type: String
+  LogBucketName:
+    Type: String
+  LockTableName:
+    Type: String
+  StateBucketName:
+    Type: String
+  RolePermissionPolicyName: 
+    Type: String
+Rules:
+  Deployment:
+    Assertions:
+      - Assert: !Equals
+          - !Ref AWS::AccountId
+          - !Ref ResourceOwner
+        AssertDescription: "backend resources must be deployed in trusting Account"
+Resources:
+  Role:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub "${RoleName}"
+      Description: assume to access terraform backend resources
+      AssumeRolePolicyDocument: #trust policy for role
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Ref ResourceAccessor
+            Action:
+              - 'sts:AssumeRole'
+            Condition:
+              Bool: # must authenticate via mfa to assume role
+                "aws:MultiFactorAuthPresent": "true"
+              StringEquals: 
+                "aws:PrincipalType":
+                  - "User"                
+              StringLike:
+                "aws:PrincipalTag/Terraformer":
+                  - !Sub "${Group1UserTagValue}"
+                  - !Sub "${Group2UserTagValue}"
+                "sts:RoleSessionName":
+                # user must provide IAM username 
+                # as session name to assume role
+                # https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-sts                  
+                  - "${aws:username}"
+      ManagedPolicyArns:
+        - !Ref RolePermissionsPolicy
+  RolePermissionsPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      ManagedPolicyName: !Sub "${RolePermissionPolicyName}"
+      Description: !Sub "Permissions for ${RoleName}"
+      PolicyDocument:
+        Version: 2012-10-17
+        # Permissions are based on:
+        # https://www.terraform.io/docs/backends/types/s3.html#example-configuration
+        Statement:
+          - Sid: AllowStateBucketList
+            Effect: Allow
+            Action: 
+              - 's3:ListBucket'
+              - 's3:GetBucketVersioning'
+            Resource:
+              - !Sub "arn:aws:s3:::${StateBucketName}"
+          - Sid: AllowStateReadWrite
+            Effect: Allow
+            Action:
+              - 's3:GetObject'
+              - 's3:PutObject'
+            Resource: 
+              - !Sub "arn:aws:s3:::${LogBucketName}/*" 
+          - Sid: AllowStateLockReadWrite
+            Effect: Allow
+            Action:
+              - 'dynamodb:DescribeTable'
+              - 'dynamodb:GetItem'
+              - 'dynamodb:PutItem'
+              - 'dynamodb:DeleteItem'  
+              - 'dynamodb:ListTagsOfResource'
+            Resource: 
+              - !Sub "arn:aws:dynamodb:${Region}:${ResourceOwner}:table/${LockTableName}" 
+
+
+  LogBucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref LogBucketName
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: ObjectWriter
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+  LogBucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref LogBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action: 
+              - 's3:PutObject'
+            Effect: Allow
+            Principal: 
+              Service: logging.s3.amazonaws.com 
+            Resource: !Join
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref LogBucket
+                - /TerraformStateLogs/*
+            Condition: 
+              ArnLike: 
+                'aws:SourceArn': !GetAtt
+                  - StateBucket
+                  - Arn 
+  LockTable:
+    Type: 'AWS::DynamoDB::Table'
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref LockTableName
+      AttributeDefinitions:
+        - AttributeName: LockID
+          AttributeType: S
+      KeySchema:
+        - AttributeName: LockID
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+  StateBucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref StateBucketName
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+      LoggingConfiguration:
+        DestinationBucketName: !Ref LogBucketName
+        LogFilePrefix: TerraformStateLogs/
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+      VersioningConfiguration:
+        Status: Enabled
+
+
+
+  StateBucketPolicy: 
+    Type: 'AWS::S3::BucketPolicy'
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Properties: 
+      Bucket: !Ref StateBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        # ---------------------------------------------
+        # require TLS always
+        # ---------------------------------------------
+        - Sid: 'AllowTLSRequestsOnly'
+          Effect: Deny
+          Action: '*'
+          Principal: '*'
+          Condition:
+            Bool:
+              'aws:SecureTransport': false
+          Resource:
+            - !GetAtt "StateBucket.Arn"
+            - !Sub
+              - "${Bucket}/*"
+              - Bucket: !GetAtt "StateBucket.Arn" 
+
+        # ---------------------------------------------
+        # user permissions
+        # ---------------------------------------------
+        # If principal is an IAM user and user does
+        # not have the correct tag, deny everything 
+        - Sid: DenyUsersLackingCorrectTag
+          Effect: Deny
+          Action: '*'
+          Principal:
+            AWS:
+              - !Sub "arn:aws:iam::${ResourceAccessor}:root"
+          Condition: 
+            StringEquals:
+              "aws:PrincipalType":
+                - "User"
+            StringNotLike:
+              "aws:PrincipalTag/Terraformer":
+                - "*"
+          Resource:
+            - !GetAtt "StateBucket.Arn"
+            - !Sub 
+              - "${Bucket}/*"
+              - Bucket: !GetAtt "StateBucket.Arn"
+
+        # If principal is IAM user and has correct
+        # TagValues grant read/write access
+        - Sid: AllowOnlyReadWriteAccess4User
+          Effect: Allow
+          Principal:
+            AWS:
+              - !Sub "arn:aws:iam::${ResourceAccessor}:root"  
+          Condition:
+            StringEquals:
+              "aws:PrincipalType":
+                - "User"
+            StringLike:
+              "aws:PrincipalTag/Terraformer":
+                - !Sub "${Group1UserTagValue}"
+                - !Sub "${Group2UserTagValue}"
+          Action:
+            - 's3:GetObject'
+            - 's3:ListBucket'
+            - 's3:PutObject'
+            # Granting DeleteObject is safe
+            # because we have versioning 
+            # enabled on the bucket. 
+            # DeleteObjectVersion is what 
+            # we have to restrict so that 
+            # someone can't delete the delete 
+            # marker and thereby permanently
+            # delete state. 
+            # Granting DeleteObject is helpful
+            # because it allows NonAdmins to
+            # migrate state (i.e., rename state files)              
+            - 's3:DeleteObject'
+            - 's3:GetBucketVersioning' 
+          Resource:
+            - !GetAtt "StateBucket.Arn"
+            - !Sub
+              - "${Bucket}/*"
+              - Bucket: !GetAtt "StateBucket.Arn"
+
+        # ---------------------------------------------
+        # role permissions
+        # ---------------------------------------------
+        # If principal is an assumed role but 
+        # role is not ${RoleName}, deny access 
+        - Sid: DenyWrongRoles
+          Effect: Deny
+          Action: '*'
+          Principal:
+            AWS:
+              - !Sub "arn:aws:iam::${ResourceAccessor}:root"
+          Condition:
+            StringEquals:
+              aws:PrincipalType: AssumedRole
+            StringNotLike:
+                aws:userId:
+                  - !Sub
+                    - "${RoleId}:*"
+                    - RoleId: !GetAtt "Role.RoleId"
+          Resource:
+            - !GetAtt "StateBucket.Arn"
+            - !Sub
+              - "${Bucket}/*"
+              - Bucket: !GetAtt "StateBucket.Arn"
+
+        # If principal is an assumed role and role
+        # is ${RoleName}, grant read/write access
+        - Sid: AllowOnlyReadWriteAccess4Role
+          Effect: Deny
+          NotAction:
+            - 's3:GetObject'
+            - 's3:PutObject'            
+            - 's3:ListBucket'
+            - 's3:GetBucketVersioning'
+          Principal:
+            AWS:
+              - !Sub "arn:aws:iam::${ResourceAccessor}:root"
+          Condition:
+            StringEquals:
+              aws:PrincipalType: AssumedRole         
+            StringLike:
+              aws:userId:
+                - !Sub
+                  - "${RoleId}:*"
+                  - RoleId: !GetAtt "Role.RoleId"
+          Resource:
+            - !GetAtt "StateBucket.Arn"
+            - !Sub
+              - "${Bucket}/*"
+              - Bucket: !GetAtt "StateBucket.Arn"

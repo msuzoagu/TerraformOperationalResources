@@ -1,77 +1,53 @@
 # Terraform Backend Resources
-This repository implements a skeleton repository for teams to use when first getting started with terraform. It uses Cloudformation as a workflow tool. 
+Inspired by [Chris Kent](https://thirstydeveloper.io/), this repository implements a skeleton repository used to create operational resources for Terraform. It uses Cloudformation as a workflow tool. 
 
-## Assumptions
+If you are interested, you can read my [post]() outlining how I use this to get projects up and running.
 
+
+### Assumptions
 1. AWS Account Setup
+
+	This template assumes the existence of at least 2 AWS accounts -  one for managing Users and the other for housing Terraform backends. You can create/manage these accounts as separate entities but I personally find managing and creating accounts via [AWS Organizations](https://docs.aws.amazon.com/controltower/latest/userguide/organizations.html) easier.  
+
+	The ability to access member accounts as an Admin user via [OrganizationAccoutAccessRole](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_accounts_access.html) makes it easy to create the initial operational resources needed to get started codifying infrastructure with Terraform. 
+
+	Note that it is possible to adapt this template for use in a single AWS account setup but that is an exercise left to the user to accomplish.
+
+2. Existing Resources
 	
-    This template assumes the existence of 2 AWS accounts. You can
-    create/manage these accounts as separate entities but I personally
-    find managing and creating accounts via [AWS Organizations](https://docs.aws.amazon.com/controltower/latest/userguide/organizations.html) easier.  
-    
-    If using AWS Organizations, your ability to switch access member accounts as Admin user (not root user) via the [OrganizationAccoutAccessRole](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_accounts_access.html) makes it easy to create the initial operational resources you need to get started codifying your infrastructure with Terraform or your Iac tool of choice.
+   Although working on a Greenfield project is rare, this template assumes a cleaning starting plate. Time permitting, I will outline how it can be used to move existing AWS infrastructure to Terraform.
 
-    Note that it is possible to adapt this template for use in a single AWS account setup but that is an exercise left to the user to accomplish.
+
+### Prerequisites 
+1. [aws-cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html), [cfn-lint](https://github.com/aws-cloudformation/cfn-lint), and [jq](https://formulae.brew.sh/formula/jq) installed
+2. Two AWS accounts: 
+	- user management account 
+	- terraform backend account
 	
+3. AWS user with admin access in the [trusting account](https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_cross-account-with-roles.html). This is the user who will, via Cloudformation, deploy/create the Terraform backend resources . Or if using AWS Org, an admin user with [OrganizationAccoutAccessRole](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_accounts_access.html) 
+
+4. Values for `.env` created using `.env.template`
+
+
+### Good To Know
+1. There are 2 CloudFormation templates: 
+	a. `backend.cf.yaml` creates resources in the trusting account 
+	b. `groups-and-users.cf.yaml` creates resources in the trusted account. 
 	
+2. `make dry-run-backend` prints out parameters in terminal. This is a chance to debug before deploying the stack. 
 
-2. Existing Resources 
-	
-	Although working on a Greenfield project is rare, this template assumes a clean starting plate. 
-	Time permitting, I hope to discuss how to use this template when moving existing infrastructure to 
-	Terraform.
+3. `make backend` and `make groups-and-users` will deploy resources in their respective accounts 
 
+4. `make display-` displays errors (in the event of failure) in the terminal 
 
+5. `make pipe-` pipes errors into txt file
 
-## Prerequisites 
-1. 2 separate AWS accounts: 
-	 - one dedicated to user management 
-	 - one dedicated to storing/holding Terraform backend resources 
-
-2. An AWS User with: 
-	- Administrative access in the [trusting account](https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_cross-account-with-roles.html) - this is the user who will, via Cloudformaion, deploy/create the Terraform backend resources
-
-3). Values for `.env` in **_BackendResources_**, **_Group_** and **_RoleAndPolicies_** directories
-		
-
-## How Things Work
-1. First create your backend role: 
-	- **RoleAndPolicies/_role.cf.yaml_** creates the following: 
-		
-		- A role assumable by users in a trusted account. Users who assume this role are granted permissions needed to work with Terraform Backend resources. 
-
-		- the policy attached to the role permits users who assume said role access to the resources listed in the policy
+6. `make delete-` deletes the stack in the event of failure
 
 
-2. Next create the backend resources: 
-	- **BackendResources/_backend.cf.yaml_** creates the following: 
-		- StateBucket (and its bucket policy)
-		- LogBucket
-		- LockTable
-	These are the operational resources needed to get started with Terraform. 
-
-3. Finally create a group: 
-	- **Group/_group.cf.yaml_** creates a group and attaches a policy that permits members of the group to assume the role created in the trusting account
-
-
-## Getting Started
-
-1. ensure you have [awscli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) installed
-
-2. Clone this repository and cd into its root directory
-
-3. The keys in `dot_env_file` are what you need to create an `.env`, which is read by the Makefiles. 
-
-
-### Usage
-1. cd into _BackendResources_ directory and run `make dry-run` for test run. 
-
-	i. if satisfied with values printed out, run `make backend` to create backend resources 
-
-2. cd into _RoleAndPolicies_ directory and run `make dry-run` for test run. 
-
-	i. if satisfied with values printed out, run `make role` to create role 
- 
-3. cd into _Group_ directory and run `make dry-run` for test run. 
-
-	i. if satisfied with values printed out, run `make group` to create group
+## Usage
+1. Fork repository and set [upstream remote](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/configuring-a-remote-repository-for-a-fork)
+2. `cd` into git directory
+3. Add appropriate values for `.env`; see `.env.template`
+4. Run `make dry-run-` command, debug `.env` variables if necessary. 
+5. Run `make-backed` or `make groups-and-users` when ready
