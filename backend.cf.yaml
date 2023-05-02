@@ -106,7 +106,7 @@ Resources:
               - 's3:GetObject'
               - 's3:PutObject'
             Resource: 
-              - !Sub "arn:aws:s3:::${LogBucketName}/*" 
+              - !Sub "arn:aws:s3:::${StateBucketName}/*" 
           - Sid: AllowStateLockReadWrite
             Effect: Allow
             Action:

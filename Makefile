@@ -192,9 +192,9 @@ delete-backend-stack:
 # test your ability to assume roles in trusting and trusted account 
 # -----------------------------------------------------------------------------
 .PHONY: test-owner-profile
-test:
+test-owner-profile:
 	aws ec2 describe-availability-zones --profile ${ResourceOwnerProfile}
 
 .PHONY: test-accessor-profile
-test:
+test-accessor-profile:
 	aws ec2 describe-availability-zones --profile ${ResourceAccessorProfile}
