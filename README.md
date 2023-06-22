@@ -21,6 +21,8 @@ If you are interested, you can read my [post]() outlining how I use this to get 
 	
 6. AWS user with admin access in the [trusting account](https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_cross-account-with-roles.html). This is the user who will, via Cloudformation, deploy/create the Terraform backend resources. Or if using AWS Org, an admin user with [OrganizationAccoutAccessRole](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_accounts_access.html) 
 
+7. Existence of named profiles for development, staging, production accounts `$HOME/.aws/config`. Edits can be made to accomodate your needs. 
+
 # Commands
 
 - `make backendResources env={arg}`
