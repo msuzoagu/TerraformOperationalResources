@@ -1,0 +1,51 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: create group whose members can run terraform commands
+
+Parameters:
+  GroupName:
+    Type: String
+  GroupPolicyName:
+    Type: String
+  GroupDescription:
+    Type: String
+  UserMgtAccountId:
+    Type: String
+  TerraformAccountId:
+    Type: String
+  BackendRole:
+    Type: String
+
+Rules: 
+  Deployment:
+    Assertions:
+      - Assert: !Equals 
+        - !Ref AWS::AccountId
+        - !Ref UserMgtAccountId
+        AssertDescription: 'must be deployed in UserMgtAccount account'
+
+
+Resources:
+  Group:
+    Type: AWS::IAM::Group
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Properties:
+      GroupName: !Ref GroupName
+      ManagedPolicyArns: 
+        - !Ref GroupPolicy
+  GroupPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Properties:
+      ManagedPolicyName: !Ref GroupPolicyName 
+      Description: !Sub "grants permission to ${GroupDescription}"
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: !Sub "${GroupDescription}"
+            Effect: Allow 
+            Action: 
+              - 'sts:AssumeRole'
+            Resource:
+              - !Sub "arn:aws:iam::${TerraformAccountId}:role/${BackendRole}"   

@@ -1,0 +1,52 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: creates policy that grants users permission to create resources in workload accounts
+
+Parameters:
+  UserMgtAccountId:
+    Type: String
+  GroupName:
+    Type: String
+  PolicyName:
+    Type: String
+  PolicyDesc:
+    Type: String
+  BackendRole:
+    Type: String
+  DevelopmentAccountId:
+    Type: String
+  # StagingAccountId:
+  #   Type: String
+  # ProductionAccountId:
+  #   Type: String    
+
+
+Rules:
+  Deployment:
+    Assertions:
+      - Assert: !Equals
+        - !Ref AWS::AccountId
+        - !Ref UserMgtAccountId
+        AssertDescription: 'must be deployed in UserMgtAccount account'
+
+
+Resources:
+  GroupPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Properties:
+      Groups: 
+        - !Ref GroupName
+      ManagedPolicyName: !Ref PolicyName
+      Description: !Sub "grants permission to ${PolicyDesc}"
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: !Ref PolicyDesc
+            Effect: Allow
+            Action:
+              - 'sts:AssumeRole'
+            Resource:
+              - !Sub "arn:aws:iam::${DevelopmentAccountId}:role/${BackendRole}"
+              # - !Sub "arn:aws:iam::${StagingAccountId}:role/${BackendRole}"
+              # - !Sub "arn:aws:iam::${ProductionAccountId}:role/${BackendRole"       

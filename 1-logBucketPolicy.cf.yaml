@@ -1,0 +1,44 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: create terraform logBucket policy
+
+Parameters:
+  Env:
+    Type: String
+  LogBucketName:
+    Type: String
+  TerraformAccountId:
+    Type: String
+
+Rules: 
+  Deployment: 
+    Assertions:
+      - Assert: !Equals 
+        - !Ref AWS::AccountId
+        - !Ref TerraformAccountId
+        AssertDescription: "resources must be created in Terraform account"
+
+Resources: 
+  LogBucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties: 
+      Bucket: !Ref LogBucketName
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: LogServiceAccess
+            Action: 
+              - 's3:PutObject'
+            Effect: Allow
+            Principal: 
+              Service: logging.s3.amazonaws.com
+            Resource: !Join
+              - ''
+              - - Fn::ImportValue: !Sub "${Env}-LogBucketArn"
+                - /TerraformStateLogs/*
+            Condition:
+              ArnLike:
+                aws:SourceArn: 
+                  Fn::ImportValue: 
+                    !Sub "${Env}-StateBucketArn"
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId

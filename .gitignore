@@ -1,6 +1,6 @@
 .env
+NOTES.md
+vars.yaml
 .DS_Store
-**/notes.md
 **/error.txt
 **/error.text
-role.cf.yaml

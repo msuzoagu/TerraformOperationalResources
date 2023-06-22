@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: creates role that users need to assume to create resources in workload accounts
+
+
+Parameters:
+  WorkloadAccountId:
+    Type: String
+  BackendRole:
+    Type: String
+  SessionDuration:
+    Type: String
+  UserMgtAccountId:
+    Type: String
+  ValueOfUserTag:
+    Type: String
+
+
+Rules:
+  Deployment:
+    Assertions:
+      - Assert: !Equals
+        - !Ref AWS::AccountId
+        - !Ref WorkloadAccountId 
+        AssertDescription: 'must be deployed in WorkloadAccount account'
+
+Resources:
+  Role:
+    Type: 'AWS::IAM::Role'
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain 
+    Properties:
+      RoleName: !Ref BackendRole
+      Description: assume role to create resources via terraform
+      MaxSessionDuration: !Ref SessionDuration
+      AssumeRolePolicyDocument: 
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow 
+            Principal:
+              AWS: !Ref UserMgtAccountId
+            Action: 
+              - 'sts:AssumeRole'
+            Condition: 
+              Bool: 
+                aws:MultiFactorAuthPresent: true
+              StringEquals: 
+                aws:PrincipalType: 
+                  - 'User'
+              StringLike: 
+                aws:PrincipalTag/Terraformers:
+                  - !Ref ValueOfUserTag
+                sts:RoleSessionName: 
+                  - '${aws:username}'

@@ -1,0 +1,101 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: create terraform state and log buckets
+
+Parameters: 
+  Env: 
+    Type: String
+  Region: 
+    Type: String
+  LogBucketName:
+    Type: String
+  LockTableName:
+    Type: String
+  StateBucketName:
+    Type: String
+  TerraformAccountId:
+    Type: String
+
+Rules: 
+  Deployment: 
+    Assertions:
+      - Assert: !Equals 
+        - !Ref AWS::AccountId
+        - !Ref TerraformAccountId
+        AssertDescription: "resources must be created in Terraform account"
+
+Resources:
+  LogBucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref LogBucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+  LockTable:
+    Type: 'AWS::DynamoDB::Table'
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref LockTableName
+      AttributeDefinitions:
+        - AttributeName: LockID
+          AttributeType: S
+      KeySchema:
+        - AttributeName: LockID
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+  StateBucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Properties: 
+      BucketName: !Ref StateBucketName
+      LoggingConfiguration:
+        DestinationBucketName: !Ref LogBucketName
+        LogFilePrefix: TerraformStateLogs/
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+      VersioningConfiguration:
+        Status: Enabled
+
+
+Outputs:
+  LogBucketName:
+    Description: LogBucket Name
+    Value: !Ref LogBucketName
+    Export:
+      Name: !Ref LogBucketName
+  LogBucketArn:
+    Description: LogBucket Arn
+    Value: !GetAtt LogBucket.Arn
+    Export:
+      Name: !Sub "${Env}-LogBucketArn"
+
+  LockTableName:
+    Description: LockTable Name
+    Value: !Ref LockTableName
+    Export: 
+      Name: !Ref LockTableName
+  LockTableArn:
+    Description: LockTable Arn
+    Value: !GetAtt LockTable.Arn
+    Export:
+      Name: !Sub "${Env}-LockTableArn"
+
+  StateBucketName:
+    Description: StateBucket Name
+    Value: !Ref StateBucketName
+    Export:
+      Name: !Ref StateBucketName
+  StateBucketArn:
+    Description: StateBucket Arn
+    Value: !GetAtt StateBucket.Arn
+    Export:
+      Name: !Sub "${Env}-StateBucketArn"
