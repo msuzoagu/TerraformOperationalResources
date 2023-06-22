@@ -5,23 +5,21 @@ If you are interested, you can read my [post]() outlining how I use this to get 
 
 ### Prerequisites
 
-a. [aws-cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+1. [aws-cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 
-b. [jq](https://jqlang.github.io/jq/download/)
+2. [jq](https://jqlang.github.io/jq/download/)
 
-c. [yq](https://github.com/mikefarah/yq#install). For quick instructions, read [this](https://www.sanderh.dev/parsing-YAML-files-using-yq/)
+3. [yq](https://github.com/mikefarah/yq#install). For quick instructions, read [this](https://www.sanderh.dev/parsing-YAML-files-using-yq/)
 
-d. [cfn-lint](https://github.com/aws-cloudformation/cfn-lint). 
+4. [cfn-lint](https://github.com/aws-cloudformation/cfn-lint). 
 
 
-e. At least 3 AWS accounts: 
+5. At least 3 AWS accounts:
 	- UserManagement Account 
 	- Terraform Backend Account
 	- Workload Account
 	
-f. AWS user with admin access in the [trusting account](https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_cross-account-with-roles.html). This is the user who will, via Cloudformation, deploy/create the Terraform backend resources. 
-
-Or if using AWS Org, an admin user with [OrganizationAccoutAccessRole](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_accounts_access.html) 
+6. AWS user with admin access in the [trusting account](https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_cross-account-with-roles.html). This is the user who will, via Cloudformation, deploy/create the Terraform backend resources. Or if using AWS Org, an admin user with [OrganizationAccoutAccessRole](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_accounts_access.html) 
 
 # Commands
 
@@ -77,12 +75,12 @@ Second to having a template I could use to setup a project quickly was the abili
 
 	To create Terraform backend resources for a production workload, simply run `make backend-resources env=production`. 
 
-	In addition, the files below are run once for each `env`-dependent workload account: 
+	In addition, the files below run once for each `env`-dependent workload account:
 
-		a. __1-logBucketPolicy.cf.yaml__
-		b. __5-stateBucketPolicy.cf.yaml__
-		c. __6-workloadRole.cf.yaml__
-		d. __7-workloadPolicy.cf.yaml__
+ - __1-logBucketPolicy.cf.yaml__
+ - __5-stateBucketPolicy.cf.yaml__
+ - __6-workloadRole.cf.yaml__
+ - __7-workloadPolicy.cf.yaml__
 
 	
 2. enforcing separation of concerns
@@ -117,7 +115,7 @@ Second to having a template I could use to setup a project quickly was the abili
 - A __workloadRole__ is created only once in your UserManagementAccount. It is attached to a group and all members of that group are permitted to assume it. Ideally, all members of the group should have tags. This way restrictions can be implemented in your __workload Accounts__. For example, using conditions, limit what a user with a certain tag key and value can do. 
 
 
-__7-workloadPolicy.cf.yaml__ is attached to the group created in __3-backendGroup__. It grants members of this group the permission to create resources in your **workload Account**
+> __7-workloadPolicy.cf.yaml__ is attached to the group created in __3-backendGroup__. It grants members of this group the permission to create resources in your **workload Account**
 
 
 Basically: 
@@ -141,10 +139,8 @@ Basically:
 		+ create a policy that grants users permission to assume the role in Step 3 abobe. attach this policy to the group created in Step 3 above
 
 With the above steps, members of the group created in __Step 2__ can: 
-	
-	+ assume the role in Terraform Account. This role in combination with the bucket policy of the TerraformStateBucket grants users the ability to read from and write to TerraformState.
-	
-	+ assume the role(S) in Workload Accounts. This template does not include any policy that grants access to create/edit/delete/update resources in Workload Accounts. I cannot tell you what access to grant to your users; decide on what permissions you want to grant your users, create a policy and attach it to the you have to the group in Step 2 above. 
+- assume the role in Terraform Account. This role in combination with the bucket policy of the TerraformStateBucket grants users the ability to read from and write to TerraformState.
+- assume the role(S) in Workload Accounts. This template does not include any policy that grants access to create/edit/delete/update resources in Workload Accounts. I cannot tell you what access to grant to your users; decide on what permissions you want to grant your users, create a policy and attach it to the you have to the group in Step 2 above. 
 
 
 ## Todo
