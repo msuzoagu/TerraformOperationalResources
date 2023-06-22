@@ -1,200 +1,252 @@
-# -----------------------------------------------------------------------------
-# Pull in environment variables
-# -----------------------------------------------------------------------------
-include .env
+##----------------------------------------------------------------------
+## Retrieve profile names
+##----------------------------------------------------------------------
+userMgtProfile := $(shell yq e '.vars.userMgt.profile' vars.yaml)
+devAcctProfile := $(shell yq e '.vars.dev.profile' vars.yaml)
+stgAcctProfile := $(shell yq e '.vars.stg.profile' vars.yaml)
+prdAcctProfile := $(shell yq e '.vars.prd.profile' vars.yaml)
 
-# -----------------------------------------------------------------------------
-# trusting account
-# -----------------------------------------------------------------------------
-ResourceOwner := $(shell \
-	aws --profile ${ResourceOwnerProfile} sts get-caller-identity | jq -r .Account \
+tfProfile := $(shell yq e '.vars.terraform.profile' vars.yaml)
+workloadacctprofile := $(shell yq e '.vars.${env}.profile' vars.yaml)
+
+
+
+##----------------------------------------------------------------------
+## Retrieve profile acccount numbers
+##----------------------------------------------------------------------
+userMgtAcctId := $(shell aws --profile ${userMgtProfile} \
+	sts get-caller-identity | jq -r .Account \
 )
 
-ResourceAccessor := $(shell \
-	aws --profile ${ResourceAccessorProfile} sts get-caller-identity | jq -r .Account \
+devAcctId := $(shell aws --profile ${devAcctProfile} \
+	sts get-caller-identity | jq -r .Account \
+)
+
+stgAcctId := $(shell aws --profile ${stgAcctProfile} \
+	sts get-caller-identity | jq -r .Account \
+)
+
+prdAcctId := $(shell aws --profile ${prdAcctProfile} \
+	sts get-caller-identity | jq -r .Account \
+)
+
+tfAcctId := $(shell aws --profile ${tfProfile} \
+	sts get-caller-identity | jq -r .Account \
+)
+
+workloadacctid := $(shell aws --profile ${workloadacctprofile} \
+	sts get-caller-identity | jq -r .Account \
 )
 
 
-# -----------------------------------------------------------------------------
-# dry run for creating groups and users
-# -----------------------------------------------------------------------------
-.PHONY: dry-run-groups-and-users
-dry-run-groups-and-users:
-	aws cloudformation deploy \
-		--dry-run\
-		--output json\
-		--region ${AwsRegion}\
-		--capabilities CAPABILITY_NAMED_IAM\
-		--profile ${ResourceAccessorProfile}\
-		--template-file groups-and-users.cf.yaml\
-		--stack-name create-groups-and-users-for-terraform-operational-resources\
-		--parameter-overrides\
-			RoleName=${RoleName}\
-			Group1Name=${Group1Name}\
-			Group1UserName=${Group1UserName}\
-			Group1UserTagValue=${Group1UserTagValue}\
-			ResourceAccessor=${ResourceAccessor}\
-			ResourceOwner=${ResourceOwner}\
-			Group2Name=${Group2Name}\
-			Group2UserName=${Group2UserName}\
-			Group2UserTagValue=${Group2UserTagValue}\
-			CommonGroupUserTagKey=${CommonGroupUserTagKey}\
-			NameOfTrustingAccount=${NameOfTrustingAccount}\
-			CommonGroupPermissionPolicyName=${CommonGroupPermissionPolicyName}
+
+##----------------------------------------------------------------------
+## Retrieve Terraform Account Admin RoleId
+##----------------------------------------------------------------------
+tfAdminRole := $(shell yq e '.vars.terraform.admin' vars.yaml) 
+
+tfAdminRoleId := $(shell aws --profile ${tfProfile} \
+	iam get-role --role-name ${tfAdminRole} | jq -r .Role.RoleId \
+)
 
 
-# -----------------------------------------------------------------------------
-# deploy groups and users
-# -----------------------------------------------------------------------------
-.PHONY: groups-and-users
-groups-and-users:
+
+##----------------------------------------------------------------------
+## Create Terraform Operational Resources
+##----------------------------------------------------------------------
+.PHONY: backendResources
+backendResources: 
+ifndef env
+	@echo "env is not defined"
+	exit 1
+endif
 	aws cloudformation deploy \
 		--output json\
-		--region ${AwsRegion}\
-		--capabilities CAPABILITY_NAMED_IAM\
-		--profile ${ResourceAccessorProfile}\
-		--template-file groups-and-users.cf.yaml\
-		--stack-name create-groups-and-users-for-terraform-operational-resources\
+		--profile ${tfProfile}\
+		--template-file 0-backendResources.cf.yaml\
+		--stack-name ${env}TfBackendResources\
+		--region $(shell yq e '.vars.${env}.region' vars.yaml)\
 		--parameter-overrides\
-			RoleName=${RoleName}\
-			Group1Name=${Group1Name}\
-			Group1UserName=${Group1UserName}\
-			Group1UserTagValue=${Group1UserTagValue}\
-			ResourceAccessor=${ResourceAccessor}\
-			ResourceOwner=${ResourceOwner}\
-			Group2Name=${Group2Name}\
-			Group2UserName=${Group2UserName}\
-			Group2UserTagValue=${Group2UserTagValue}\
-			CommonGroupUserTagKey=${CommonGroupUserTagKey}\
-			NameOfTrustingAccount=${NameOfTrustingAccount}\
-			CommonGroupPermissionPolicyName=${CommonGroupPermissionPolicyName}
+		Env=${env}\
+		Region=$(shell yq e '.vars.${env}.region' vars.yaml)\
+		TerraformAccountId=$(tfAcctId)\
+		LogBucketName=$(shell yq e '.vars.${env}.project.lbucket' vars.yaml)\
+		LockTableName=$(shell yq e '.vars.${env}.project.locktable' vars.yaml)\
+		StateBucketName=$(shell yq e '.vars.${env}.project.sbucket' vars.yaml)
 
 
-# -----------------------------------------------------------------------------
-# display errors in terminal
-# -----------------------------------------------------------------------------
-.PHONY: display-groups-and-users-errors
-display-groups-and-users-errors:
-	aws cloudformation describe-stacks\
-		--stack-name create-groups-and-users-for-terraform-operational-resources\
-		--profile ${ResourceAccessorProfile}\
-		--region ${AwsRegion}
 
-# -----------------------------------------------------------------------------
-# pipe errors into text file
-# -----------------------------------------------------------------------------
-.PHONY: pipe-groups-and-users-errors
-pipe-groups-and-users-errors:
-	aws cloudformation describe-stacks\
-		--stack-name create-groups-and-users-for-terraform-operational-resources\
-		--profile ${ResourceAccessorProfile}\
-		--region ${AwsRegion}\
-		>> error-groups-and-users.txt 
-
-
-# -----------------------------------------------------------------------------
-# delete stack
-# -----------------------------------------------------------------------------
-.PHONY: delete-groups-and-users-stack
-delete-groups-and-users-stack:
-	aws cloudformation delete-stack \
-	--stack-name create-groups-and-users-for-terraform-operational-resources \
-	--profile ${ResourceAccessorProfile} \
-	--region ${AwsRegion}
-
-
-# -----------------------------------------------------------------------------
-# dry run for creating backend resources
-# -----------------------------------------------------------------------------
-.PHONY: dry-run-backend
-dry-run-backend:
-	aws cloudformation deploy \
-		--dry-run\
-		--output json\
-		--region ${AwsRegion}\
-		--template-file backend.cf.yaml\
-		--profile ${ResourceOwnerProfile}\
-		--capabilities CAPABILITY_NAMED_IAM\
-		--stack-name create-backend-for-terraform-operational-resources\
-		--parameter-overrides\
-			Region=${AwsRegion}\
-			RoleName=${RoleName}\
-			LogBucketName=${Env}-${LB}\
-			LockTableName=${Env}-${LT}\
-			StateBucketName=${Env}-${SB}\
-			ResourceOwner=${ResourceOwner}\
-			ResourceAccessor=${ResourceAccessor}\
-			Group1UserTagValue=${Group1UserTagValue}\
-			Group2UserTagValue=${Group2UserTagValue} \
-			RolePermissionPolicyName=${RolePermissionPolicyName}
-
-
-# -----------------------------------------------------------------------------
-# deploy backend resources
-# -----------------------------------------------------------------------------
-.PHONY: backend
-backend:
+.PHONY: logBucketPolicy
+logBucketPolicy:
+ifndef env
+	@echo "env is not defined"
+	exit 1
+endif
 	aws cloudformation deploy \
 		--output json\
-		--region ${AwsRegion}\
-		--template-file backend.cf.yaml\
-		--profile ${ResourceOwnerProfile}\
-		--capabilities CAPABILITY_NAMED_IAM\
-		--stack-name create-backend-for-terraform-operational-resources\
+		--profile ${tfProfile}\
+		--template-file 1-logBucketPolicy.cf.yaml\
+		--stack-name ${env}TfLogBucketPolicy\
+		--region $(shell yq e '.vars.${env}.region' vars.yaml)\
 		--parameter-overrides\
-			Region=${AwsRegion}\
-			RoleName=${RoleName}\
-			LogBucketName=${Env}-${LB}\
-			LockTableName=${Env}-${LT}\
-			StateBucketName=${Env}-${SB}\
-			ResourceOwner=${ResourceOwner}\
-			ResourceAccessor=${ResourceAccessor}\
-			Group1UserTagValue=${Group1UserTagValue}\
-			Group2UserTagValue=${Group2UserTagValue} \
-			RolePermissionPolicyName=${RolePermissionPolicyName}
+		Env=${env}\
+		LogBucketName=$(shell yq e '.vars.${env}.project.lbucket' vars.yaml)\
+		TerraformAccountId=$(tfAcctId)
 
 
-# -----------------------------------------------------------------------------
-# display errors in terminal
-# -----------------------------------------------------------------------------
-.PHONY: display-backend-errors
-display-backend-errors:
-	aws cloudformation describe-stacks\
-		--stack-name create-backend-for-terraform-operational-resources\
-		--profile ${ResourceOwnerProfile}\
-		--region ${AwsRegion}
+
+.PHONY: backendRole
+backendRole:
+ifndef env
+	@echo "env is not defined"
+	exit 1
+endif
+	aws cloudformation deploy \
+		--output json\
+		--profile ${tfProfile}\
+		--template-file 2-backendRole.cf.yaml\
+		--stack-name create-role-used-to-access-terrform-backend\
+		--capabilities CAPABILITY_NAMED_IAM\
+		--parameter-overrides\
+		Env=${env}\
+		UserMgtAccountId=${userMgtAcctId}\
+		TerraformAccountId=${tfAcctId}\
+		ValueOfUserTag=$(shell yq e '.vars.userMgt.tagValue' vars.yaml)\
+		SessionDuration=$(shell yq e '.vars.terraform.session' vars.yaml)\
+		PolicyName=$(shell yq e '.vars.terraform.policyname' vars.yaml)\
+		BackendRole=$(shell yq e '.vars.terraform.rolename' vars.yaml)
 
 
-# -----------------------------------------------------------------------------
-# pipe errors into text file
-# -----------------------------------------------------------------------------
-.PHONY: pipe-backend-errors
-pipe-backend-errors:
-	aws cloudformation describe-stack-events\
-		--stack-name create-backend-for-terraform-operational-resources\
-		--profile ${ResourceOwnerProfile}\
-		--region ${AwsRegion}\
-		>> error-backend.txt 
+
+.PHONY: backendGroup
+backendGroup:
+	aws cloudformation deploy \
+		--output json\
+		--profile ${userMgtProfile}\
+		--template-file 3-backendGroup.cf.yaml\
+		--stack-name create-group-used-to-manage-access-to-terraform-commands\
+		--capabilities CAPABILITY_NAMED_IAM\
+		--parameter-overrides\
+		UserMgtAccountId=${userMgtAcctId}\
+		TerraformAccountId=${tfAcctId}\
+		GroupName=$(shell yq e '.vars.group.name' vars.yaml)\
+		PolicyName=$(shell yq e '.vars.group.backend.policyname' vars.yaml)\
+		PolicyDesc=$(shell yq e '.vars.group.backenddescription' vars.yaml)\
+		BackendRole=$(shell yq e '.vars.terraform.rolename' vars.yaml)
 
 
-# -----------------------------------------------------------------------------
-# delete stack
-# -----------------------------------------------------------------------------
-.PHONY: delete-backend-stack
-delete-backend-stack:
-	aws cloudformation delete-stack \
-		--stack-name create-backend-for-terraform-operational-resources \
-		--profile ${ResourceOwnerProfile}\
-		--region ${AwsRegion}
+
+.PHONY: backendUser
+backendUser:
+	aws cloudformation deploy\
+		--output json\
+		--profile ${userMgtProfile}\
+		--template-file 4-backendUser.cf.yaml\
+		--stack-name create-user-permitted-to-run-terraform-commands\
+		--capabilities CAPABILITY_NAMED_IAM\
+		--parameter-overrides\
+		Username=$(shell yq e '.vars.userMgt.username' vars.yaml)\
+		GroupName=$(shell yq e '.vars.group.name' vars.yaml)\
+		UserMgtAccountId=${userMgtAcctId}\
+		UserTagKey=$(shell yq e '.vars.userMgt.tagkey' vars.yaml)\
+		ValueOfUserTag=$(shell yq e '.vars.userMgt.tagValue' vars.yaml)
 
 
-# -----------------------------------------------------------------------------
-# test your ability to assume roles in trusting and trusted account 
-# -----------------------------------------------------------------------------
-.PHONY: test-owner-profile
-test:
-	aws ec2 describe-availability-zones --profile ${ResourceOwnerProfile}
 
-.PHONY: test-accessor-profile
-test:
-	aws ec2 describe-availability-zones --profile ${ResourceAccessorProfile}
+.PHONY: stateBucketPolicy
+stateBucketPolicy:
+ifndef env
+	@echo "env is not defined"
+	exit 1
+endif
+	aws cloudformation deploy\
+		--output json\
+		--profile ${tfProfile}\
+		--template-file 5-stateBucketPolicy.cf.yaml\
+		--stack-name ${env}TerraformStateBucketPolicy\
+		--region $(shell yq e '.vars.${env}.region' vars.yaml)\
+		--parameter-overrides\
+		Env=${env}\
+		Username=$(shell yq e '.vars.userMgt.username' vars.yaml)\
+		UserMgtAccountId=${userMgtAcctId}\
+		TerraformAccountId=$(tfAcctId)\
+		TerrformAdminRole=${tfAdminRole}\
+		TerraformAdminRoleId=${tfAdminRoleId}\
+		BackendRole=$(shell yq e '.vars.terraform.rolename' vars.yaml)\
+		ValueOfUserTag=$(shell yq e '.vars.userMgt.tagValue' vars.yaml)\
+		StateBucketName=$(shell yq e '.vars.${env}.project.sbucket' vars.yaml)
+
+
+
+.PHONY: workloadRole
+workloadRole:
+ifndef env 
+	@echo "env is not defined"
+	exit 1
+endif
+	aws cloudformation deploy\
+		--output json\
+		--profile ${workloadacctprofile}\
+		--template-file 6-workloadRole.cf.yaml\
+		--stack-name addRoleUsed2CreateResourcesIn-DevStgPrd-Accts\
+		--capabilities CAPABILITY_NAMED_IAM\
+		--parameter-overrides\
+		WorkloadAccountId=${workloadacctid}\
+		BackendRole=$(shell yq e '.vars.terraform.rolename' vars.yaml)\
+		SessionDuration=$(shell yq e '.vars.${env}.session' vars.yaml)\
+		UserMgtAccountId=${userMgtAcctId}\
+		ValueOfUserTag=$(shell yq e '.vars.userMgt.tagValue' vars.yaml)
+
+
+.PHONY: workloadGroupPolicy
+workloadGroupPolicy:
+	aws cloudformation deploy\
+		--output json\
+		--profile ${userMgtProfile}\
+		--template-file 7-workloadPolicy.cf.yaml\
+		--stack-name addGroupPolicyUsed2CreateResourcesIn-DevStgPrd-Accts\
+		--capabilities CAPABILITY_NAMED_IAM\
+		--parameter-overrides\
+		UserMgtAccountId=${userMgtAcctId}\
+		GroupName=$(shell yq e '.vars.group.name' vars.yaml)\
+		PolicyName=$(shell yq e '.vars.group.workload.policyname' vars.yaml)\
+		PolicyDesc=$(shell yq e '.vars.group.workload.policydesc' vars.yaml)\
+		BackendRole=$(shell yq e '.vars.terraform.rolename' vars.yaml)\
+		DevelopmentAccountId=${devAcctId}
+
+
+# .PHONY: add-staging-accountId-to-workloadGroupPolicy
+# add-staging-accountId-to-workloadGroupPolicy:
+# 	aws cloudformation update-stack\
+# 		--output json\
+# 		--profile ${userMgtProfile}\
+# 		--template-body file://7-workloadPolicy.cf.yaml\
+# 		--stack-name addGroupPolicyUsed2CreateResourcesIn-DevStgPrd-Accts\
+# 		--capabilities CAPABILITY_NAMED_IAM\
+# 		--parameters\
+# 		ParameterKey=UserMgtAccountId,UsePreviousValue=true\
+# 		ParameterKey=GroupName,UsePreviousValue=true\
+# 		ParameterKey=PolicyName,UsePreviousValue=true\
+# 		ParameterKey=PolicyDesc,UsePreviousValue=true\
+# 		ParameterKey=BackendRole,UsePreviousValue=true\
+# 		ParameterKey=DevelopmentAccountId,UsePreviousValue=true\
+# 		ParameterKey=StagingAccountId,ParameterValue=${stgAcctId}
+
+
+# .PHONY: add-production-accountId-to-workloadGroupPolicy
+# add-production-accountId-to-workloadGroupPolicy:
+# 	aws cloudformation update-stack\
+# 		--output json\
+# 		--profile ${userMgtProfile}\
+# 		--template-body file://7-workloadPolicy.cf.yaml\
+# 		--stack-name addGroupPolicyUsed2CreateResourcesIn-DevStgPrd-Accts\
+# 		--capabilities CAPABILITY_NAMED_IAM\
+# 		--parameters\
+# 		ParameterKey=UserMgtAccountId,UsePreviousValue=true\
+# 		ParameterKey=GroupName,UsePreviousValue=true\
+# 		ParameterKey=PolicyName,UsePreviousValue=true\
+# 		ParameterKey=PolicyDesc,UsePreviousValue=true\
+# 		ParameterKey=BackendRole,UsePreviousValue=true\
+# 		ParameterKey=DevelopmentAccountId,UsePreviousValue=true\
+# 		ParameterKey=StagingAccountId,UsePreviousValue=true\
+# 		ParameterKey=ProductionAccountId,ParameterValue=${prdAcctId}

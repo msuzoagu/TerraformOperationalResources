@@ -1,0 +1,169 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: create terraform stateBucket policy
+
+Parameters:
+  Env:
+    Type: String
+  Username:
+    Type: String
+  BackendRole: 
+    Type: String
+  ValueOfUserTag:
+    Type: String
+  StateBucketName:
+    Type: String
+  UserMgtAccountId:
+    Type: String
+  TerrformAdminRole:
+    Type: String
+  TerraformAccountId:
+    Type: String
+  TerraformAdminRoleId:
+    Type: String
+
+
+Rules: 
+  Deployment: 
+    Assertions:
+      - Assert: !Equals 
+        - !Ref AWS::AccountId
+        - !Ref TerraformAccountId
+        AssertDescription: "resources must be created in Terraform account"
+
+
+Resources: 
+  StateBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Properties:
+      Bucket: !Ref StateBucketName
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        ################################################
+        # Require TLS always
+        ################################################          
+        - Sid: 'RequireTLSRequests'
+          Effect: Deny
+          Action: '*'
+          Principal: '*'
+          Resource: 
+            - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
+          Condition:
+            Bool:
+              'aws:SecureTransport': false
+        ######################################################
+        ## Policy below blocks all Principals, except those 
+        ## that match condition, from performing any on the
+        ## bucket.
+        ##
+        ## To understand how this specific policy works read 
+        ## aws blogpost 'How to Restrict Amazon S3 Bucket 
+        ## Access to a Specific IAM Role'. 
+        ##
+        ## Note: Use of wildcard in Principal is solely
+        ## for Deny. Documentation for this can be found 
+        ## in 'AWS JSON policy elements: Principal' under
+        ## AWS Identity and Access Management.
+        ##
+        ######################################################
+        - Sid: WhitelistPrincipals
+          Effect: Deny
+          Action: '*'
+          Principal: '*'
+          Resource: 
+            - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
+            - !Join
+              - ''
+              - - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
+                - '/*'
+          Condition:
+            StringNotLike:
+              aws:userId:
+                - !Ref AWS::AccountId
+                - !ImportValue BackendRoleId
+                - !Sub 
+                  - '${tfAdminRoleId}:*'
+                  - tfAdminRoleId: !Ref TerraformAdminRoleId
+            ForAnyValue:StringNotLike:
+              aws:PrincipalArn:
+                - !Sub "arn:aws:iam::${UserMgtAccountId}:user/${Username}"
+        #######################################################
+        ## Grant S3FullAccess to TerrformAdminRole; role 
+        ## that used to create Cloudformation Stacks.
+        ##
+        ## Note: Without this policy, the next policy locks 
+        ## all users/principals/roles out of bucket and grants
+        ## access to only the role used to run terraform, which 
+        ## is turn is limited to only READ/WRITE access. Thus 
+        ## this rule is needed to have administrative control
+        ## of the TerraformStateBucket
+        #######################################################
+        - Sid: S3FullAccess
+          Effect: Allow
+          Action: 's3:*'
+          Principal:
+            AWS: 
+              - !Sub "arn:aws:iam::${TerraformAccountId}:role/${TerrformAdminRole}"
+          Resource: 
+            - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
+            - !Join
+              - ''
+              - - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
+                - '/*'
+        #####################################################
+        ## If principal is an assumed role and the assumed 
+        ## role is the one used to run terraform commands 
+        ## then grant Read/Write access only. 
+        #####################################################
+        - Sid: ReadWriteAccess
+          Effect: Allow
+          Action:
+            - 's3:GetObject'
+            - 's3:PutObject'
+            - 's3:ListBucket'
+            - 's3:GetBucketVersioning'
+          Principal: 
+            AWS: 
+              - !Sub "arn:aws:iam::${TerraformAccountId}:role/${BackendRole}"
+          Resource:
+            - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
+            - !Join
+              - ''
+              - - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
+                - '/*'
+        #####################################################
+        ## Restrict 's3:DeleteObject', which enables the 
+        ## ability to migrate state (that is rename state 
+        ## files), to users with the correct tag. 
+        ##
+        ## Granting DeleteObject is safe because we have 
+        ## versioning enabled on the bucket. The action we
+        ## absoluted do not permit to any user or role is 
+        ## DeleteObjectVersion - because delection object 
+        ## version results in permanently deleting state.
+        ##
+        ##
+        #####################################################
+        - Sid: RestrictStateMigration
+          Effect: Allow
+          Action:
+            - 's3:DeleteObject'
+          Principal: 
+            AWS:
+              - !Sub "arn:aws:iam::${UserMgtAccountId}:root"
+          Condition:
+            Bool: 
+              aws:MultiFactorAuthPresent: true
+            StringEquals: 
+              aws:PrincipalType:
+                - "User"                
+              aws:PrincipalTag/Terraformers:
+                - !Ref ValueOfUserTag
+          Resource: 
+            - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
+            - !Join
+              - ''
+              - - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
+                - '/*'

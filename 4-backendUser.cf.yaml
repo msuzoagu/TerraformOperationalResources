@@ -1,0 +1,43 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: create users permitted to run terraform commands
+
+Parameters: 
+  Username:
+    Type: String  
+  GroupName:
+    Type: String
+  UserMgtAccountId:
+    Type: String
+  UserTagKey:
+    Type: String
+  ValueOfUserTag:
+    Type: String
+
+
+Rules:
+  Deployment:
+    Assertions:
+      - Assert: !Equals
+        - !Ref AWS::AccountId
+        - !Ref UserMgtAccountId
+        AssertDescription: 'must be deployed in UserMgtAccount account'
+
+
+Resources:
+  User:
+    Type: AWS::IAM::User
+    Properties:
+      Groups: 
+        - !Ref GroupName
+      UserName: !Ref Username
+      Tags:
+        - Key: !Ref UserTagKey
+          Value: !Ref ValueOfUserTag
+
+Outputs:
+  UserArn:
+    Description: arn for user
+    Value: !GetAtt User.Arn
+    Export:
+      Name: 
+        "UserArn"  
