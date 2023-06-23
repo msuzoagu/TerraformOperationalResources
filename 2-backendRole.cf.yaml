@@ -2,8 +2,16 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: create role users must assume to run Terraform commands
 
 Parameters: 
-  Env:
-    Type: String
+  ListOfStateBucketArns:
+    Type: CommaDelimitedList
+    Description: >-
+    comma-delimited list of exported state bucket arns backendRole 
+    is granted access to
+  ListOfLockTableArns:
+    Type: CommaDelimitedList
+    Description: >-
+    comma-delimited list of exported lock table arns backendRole
+    is granted access to
   PolicyName:
     Type: String
   ValueOfUserTag:
@@ -16,7 +24,6 @@ Parameters:
     Type: String
   BackendRole: 
     Type: String 
-
 
 Rules:
   Deployment:
@@ -72,16 +79,28 @@ Resources:
               - 's3:ListBucket'
               - 's3:GetBucketVersioning'
             Resource:
-              - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
+              - Fn::ImportValue: !Select [0, !Ref BucketList]
+              - Fn::ImportValue: !Select [1, !Ref BucketList]
+              - Fn::ImportValue: !Select [2, !Ref BucketList]
+
           - Sid: AllowStateReadWrite
             Effect: Allow
             Action:
               - 's3:GetObject'
               - 's3:PutObject'
-            Resource: !Join
-              - ''
-              - - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
-                - /*
+            Resource: 
+              - !Join 
+                - ''
+                - - Fn::ImportValue: !Select [0, !Ref BucketList]
+                  - /*
+              - !Join 
+                - ''
+                - - Fn::ImportValue: !Select [1, !Ref BucketList]
+                  - /*
+              - !Join 
+                - ''
+                - - Fn::ImportValue: !Select [2, !Ref BucketList]
+                  - /*
           - Sid: AllowStateLockReadWrite
             Effect: Allow
             Action:
@@ -91,7 +110,19 @@ Resources:
               - 'dynamodb:DeleteItem'  
               - 'dynamodb:ListTagsOfResource'
             Resource: 
-              - Fn::ImportValue: !Sub "${Env}-LockTableArn"
+              - !Join 
+                - ''
+                - - Fn::ImportValue: !Select [0, !Ref LockTableList]
+                  - /*
+              - !Join
+                - ''
+                - - Fn::ImportValue: !Select [1, !Ref LockTableList]
+                  - /*
+              - !Join
+                - ''
+                - - Fn::ImportValue: !Select [2, !Ref LockTableList]
+                  - /*
+
 
 Outputs:
   RoleId:

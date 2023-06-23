@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: create terraform state and log buckets
+Description: create terraform operational resources
 
 Parameters: 
   Env: 
