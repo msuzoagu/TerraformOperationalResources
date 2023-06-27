@@ -1,0 +1,147 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: create role users must assume to gain READ/WRITE access to Terraform OperationalResources
+
+Parameters: 
+  ListOfLockTableArns:
+    Type: CommaDelimitedList
+    Description: >-
+      comma-delimited list of exported lock table arns backendRole is granted access to
+  ListOfStateBucketArns:
+    Type: CommaDelimitedList
+    Description: >
+      comma-delimited list of exported state bucket arns backendRole 
+      is granted access to
+  PolicyName:
+    Type: String
+  ValueOfUserTag:
+    Type: String
+  MaxSession:
+    Type: String
+  ResourceAccessorAccountId:
+    Type: String
+  OperationalResourcesAccountId:
+    Type: String
+  TfStateRoleName: 
+    Type: String 
+  Setup: 
+    Type: String
+
+Conditions: 
+  isSingleAccountSetup: !Equals ["single", !Ref Setup]
+  isMultiAccountSetup: !Equals ["multiple", !Ref Setup] 
+
+
+Rules:
+  Deployment:
+    Assertions:
+      - Assert: !Equals
+        - !Ref AWS::AccountId
+        - !Ref OperationalResourcesAccountId 
+        AssertDescription: "resources must be created in Terraform account"
+
+Resources:
+  Role: 
+    Type: 'AWS::IAM::Role'
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Properties: 
+      RoleName: !Ref TfStateRoleName
+      Description: assume role to run Terraform commands
+      MaxSessionDuration: !Ref MaxSession
+      ManagedPolicyArns:
+        - !Ref RolePolicy
+      AssumeRolePolicyDocument: #trust policy for role
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: 
+              AWS: !Ref ResourceAccessorAccountId #TrustedAccount
+            Action:
+              - 'sts:AssumeRole'
+            Condition:
+              Bool: # must authenticate via mfa to assume role
+                aws:MultiFactorAuthPresent: true
+              StringEquals:
+                aws:PrincipalType:
+                  - "User"
+              StringLike:
+                aws:PrincipalTag/Terraformers:
+                  - !Ref ValueOfUserTag
+                sts:RoleSessionName:
+                  - '${aws:username}'
+  RolePolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Properties: 
+      ManagedPolicyName: !Ref PolicyName 
+      Description: !Sub "permissions for ${TfStateRoleName}"
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowStateBucketList
+            Effect: Allow
+            Action: 
+              - 's3:ListBucket'
+              - 's3:GetBucketVersioning'
+            Resource:
+              - Fn::ImportValue: !Select [0, !Ref ListOfStateBucketArns]
+              ## Uncomment to update resources list 
+              # - Fn::ImportValue: !Select [1, !Ref ListOfStateBucketArns]
+              # - Fn::ImportValue: !Select [2, !Ref ListOfStateBucketArns]
+
+          - Sid: AllowStateReadWrite
+            Effect: Allow
+            Action:
+              - 's3:GetObject'
+              - 's3:PutObject'
+            Resource: 
+              - !Join 
+                - ''
+                - - Fn::ImportValue: !Select [0, !Ref ListOfStateBucketArns]
+                  - /*
+              # - !Join 
+              #   - ''
+              #   - - Fn::ImportValue: !Select [1, !Ref ListOfStateBucketArns]
+              #     - /*
+              # - !Join 
+              #   - ''
+              #   - - Fn::ImportValue: !Select [2, !Ref ListOfStateBucketArns]
+              #     - /*
+          - Sid: AllowStateLockReadWrite
+            Effect: Allow
+            Action:
+              - 'dynamodb:DescribeTable'
+              - 'dynamodb:GetItem'
+              - 'dynamodb:PutItem'
+              - 'dynamodb:DeleteItem'  
+              - 'dynamodb:ListTagsOfResource'
+            Resource: 
+              - !Join 
+                - ''
+                - - Fn::ImportValue: !Select [0, !Ref ListOfLockTableArns]
+                  - /*
+              # - !Join
+              #   - ''
+              #   - - Fn::ImportValue: !Select [1, !Ref ListOfLockTableArns]
+              #     - /*
+              # - !Join
+              #   - ''
+              #   - - Fn::ImportValue: !Select [2, !Ref ListOfLockTableArns]
+              #     - /*
+
+
+Outputs:
+  SingleAccountSetupRoleId:
+    Condition: isSingleAccountSetup
+    Description: id of role
+    Value: !GetAtt Role.RoleId
+    Export:
+      Name: SnglTfStateRoleId
+
+  MultiAccountSetupRoleId:
+    Condition: isMultiAccountSetup
+    Description: id of role
+    Value: !GetAtt Role.RoleId
+    Export:
+      Name: MultiTfStateRoleId
