@@ -5,11 +5,11 @@ Description: creates role that users need to assume to create resources in workl
 Parameters:
   WorkloadAccountId:
     Type: String
-  BackendRole:
+  ResourceAccessorAccountId:
     Type: String
-  SessionDuration:
+  TfStateRoleName:
     Type: String
-  UserMgtAccountId:
+  MaxSession:
     Type: String
   ValueOfUserTag:
     Type: String
@@ -21,7 +21,7 @@ Rules:
       - Assert: !Equals
         - !Ref AWS::AccountId
         - !Ref WorkloadAccountId 
-        AssertDescription: 'must be deployed in WorkloadAccount account'
+        AssertDescription: 'must be deployed in trusting account'
 
 Resources:
   Role:
@@ -29,15 +29,15 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain 
     Properties:
-      RoleName: !Ref BackendRole
+      RoleName: !Ref TfStateRoleName
       Description: assume role to create resources via terraform
-      MaxSessionDuration: !Ref SessionDuration
+      MaxSessionDuration: !Ref MaxSession
       AssumeRolePolicyDocument: 
         Version: 2012-10-17
         Statement:
           - Effect: Allow 
             Principal:
-              AWS: !Ref UserMgtAccountId
+              AWS: !Ref ResourceAccessorAccountId # Trusted Account
             Action: 
               - 'sts:AssumeRole'
             Condition: 

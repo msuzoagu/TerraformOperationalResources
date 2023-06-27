@@ -4,14 +4,20 @@ Description: create users permitted to run terraform commands
 Parameters: 
   Username:
     Type: String  
-  GroupName:
+  UserGroup:
     Type: String
-  UserMgtAccountId:
+  ResourceAccessorAccountId:
     Type: String
   UserTagKey:
     Type: String
   ValueOfUserTag:
     Type: String
+  Setup: 
+    Type: String
+
+Conditions: 
+  isSingleAccountSetup: !Equals ["single", !Ref Setup]
+  isMultiAccountSetup: !Equals ["multiple", !Ref Setup] 
 
 
 Rules:
@@ -19,8 +25,8 @@ Rules:
     Assertions:
       - Assert: !Equals
         - !Ref AWS::AccountId
-        - !Ref UserMgtAccountId
-        AssertDescription: 'must be deployed in UserMgtAccount account'
+        - !Ref ResourceAccessorAccountId
+        AssertDescription: 'deployed in account where users are managed'
 
 
 Resources:
@@ -28,16 +34,23 @@ Resources:
     Type: AWS::IAM::User
     Properties:
       Groups: 
-        - !Ref GroupName
+        - !Ref UserGroup
       UserName: !Ref Username
       Tags:
         - Key: !Ref UserTagKey
           Value: !Ref ValueOfUserTag
 
 Outputs:
-  UserArn:
+  SingleAccountSetupUserArn:
+    Condition: isSingleAccountSetup    
     Description: arn for user
     Value: !GetAtt User.Arn
     Export:
-      Name: 
-        "UserArn"  
+      Name: SnglUserArn
+
+  MultiAccountSetupUserArn:
+    Condition: isMultiAccountSetup    
+    Description: arn for user
+    Value: !GetAtt User.Arn
+    Export:
+      Name: MultiUserArn

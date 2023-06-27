@@ -6,15 +6,18 @@ Parameters:
     Type: String
   LogBucketName:
     Type: String
-  TerraformAccountId:
+  OperationalResourcesAccountId:
     Type: String
+
+Conditions: 
+  PermitEmptyEnv: !Not [!Equals ["", !Ref Env]] 
 
 Rules: 
   Deployment: 
     Assertions:
       - Assert: !Equals 
         - !Ref AWS::AccountId
-        - !Ref TerraformAccountId
+        - !Ref OperationalResourcesAccountId
         AssertDescription: "resources must be created in Terraform account"
 
 Resources: 
@@ -33,12 +36,12 @@ Resources:
               Service: logging.s3.amazonaws.com
             Resource: !Join
               - ''
-              - - Fn::ImportValue: !Sub "${Env}-LogBucketArn"
+              - - Fn::ImportValue: !Sub "${Env}LogBucketArn"
                 - /TerraformStateLogs/*
             Condition:
               ArnLike:
                 aws:SourceArn: 
                   Fn::ImportValue: 
-                    !Sub "${Env}-StateBucketArn"
+                    !Sub "${Env}StateBucketArn"
               StringEquals:
                 aws:SourceAccount: !Ref AWS::AccountId

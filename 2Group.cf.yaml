@@ -2,26 +2,36 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: create group whose members can run terraform commands
 
 Parameters:
+  PowerUserPolicyArn:
+    Type: String
+    Description: can be an empty string therefore is an optional parameter
   GroupName:
+    Type: String
+  TfStateRoleName:
     Type: String
   GroupPolicyName:
     Type: String
-  GroupDescription:
+  GroupPolicyDesc:
     Type: String
-  UserMgtAccountId:
+  ResourceAccessorAccountId:
     Type: String
-  TerraformAccountId:
+  OperationalResourcesAccountId:
     Type: String
-  BackendRole:
-    Type: String
+
+
+Conditions: 
+  PowerUserPolicyArnIsEmpty: !Equals ["", !Ref PowerUserPolicyArn]
+  PermitEmptyPowerUserPolicyArn: !Not [!Equals ["", !Ref PowerUserPolicyArn]]
+
+
 
 Rules: 
   Deployment:
     Assertions:
       - Assert: !Equals 
         - !Ref AWS::AccountId
-        - !Ref UserMgtAccountId
-        AssertDescription: 'must be deployed in UserMgtAccount account'
+        - !Ref ResourceAccessorAccountId
+        AssertDescription: 'deployed in account that needs to access operational resources'
 
 
 Resources:
@@ -32,6 +42,10 @@ Resources:
     Properties:
       GroupName: !Ref GroupName
       ManagedPolicyArns: 
+        - Fn::If:
+          - PowerUserPolicyArnIsEmpty
+          - !Ref 'AWS::NoValue'
+          - !Ref PowerUserPolicyArn       
         - !Ref GroupPolicy
   GroupPolicy:
     Type: 'AWS::IAM::ManagedPolicy'
@@ -39,13 +53,13 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       ManagedPolicyName: !Ref GroupPolicyName 
-      Description: !Sub "grants permission to ${GroupDescription}"
+      Description: !Sub "grants permission to ${GroupPolicyDesc}"
       PolicyDocument:
         Version: 2012-10-17
         Statement:
-          - Sid: !Sub "${GroupDescription}"
+          - Sid: !Sub "${GroupPolicyDesc}"
             Effect: Allow 
             Action: 
               - 'sts:AssumeRole'
             Resource:
-              - !Sub "arn:aws:iam::${TerraformAccountId}:role/${BackendRole}"   
+              - !Sub "arn:aws:iam::${OperationalResourcesAccountId}:role/${TfStateRoleName}"   

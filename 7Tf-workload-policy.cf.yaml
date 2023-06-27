@@ -2,22 +2,18 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: creates policy that grants users permission to create resources in workload accounts
 
 Parameters:
-  UserMgtAccountId:
-    Type: String
   GroupName:
     Type: String
   PolicyName:
     Type: String
   PolicyDesc:
     Type: String
-  BackendRole:
+  TfStateRoleName:
     Type: String
-  DevelopmentAccountId:
+  WorkloadAccountId:
     Type: String
-  # StagingAccountId:
-  #   Type: String
-  # ProductionAccountId:
-  #   Type: String    
+  ResourceAccessorAccountId:
+    Type: String  
 
 
 Rules:
@@ -25,7 +21,7 @@ Rules:
     Assertions:
       - Assert: !Equals
         - !Ref AWS::AccountId
-        - !Ref UserMgtAccountId
+        - !Ref ResourceAccessorAccountId
         AssertDescription: 'must be deployed in UserMgtAccount account'
 
 
@@ -47,6 +43,6 @@ Resources:
             Action:
               - 'sts:AssumeRole'
             Resource:
-              - !Sub "arn:aws:iam::${DevelopmentAccountId}:role/${BackendRole}"
-              # - !Sub "arn:aws:iam::${StagingAccountId}:role/${BackendRole}"
-              # - !Sub "arn:aws:iam::${ProductionAccountId}:role/${BackendRole"       
+              - !Sub "arn:aws:iam::${WorkloadAccountId}:role/${TfStateRoleName}"
+              # - !Sub "arn:aws:iam::${StgAccountId}:role/${TfStateRoleName}"
+  

@@ -2,33 +2,40 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: create terraform stateBucket policy
 
 Parameters:
-  Env:
+  Env: 
+    Type: String
+    Description: Used to differentiate workload accounts
+  Setup:
     Type: String
   Username:
     Type: String
-  BackendRole: 
+  AdminRoleId:
+    Type: String  
+  AdminRoleName:
     Type: String
   ValueOfUserTag:
     Type: String
   StateBucketName:
     Type: String
-  UserMgtAccountId:
+  TfStateRoleName: 
     Type: String
-  TerrformAdminRole:
+  ResourceAccessorAccountId:
     Type: String
-  TerraformAccountId:
-    Type: String
-  TerraformAdminRoleId:
+  OperationalResourcesAccountId:
     Type: String
 
+Conditions: 
+  PermitEmptyEnv: !Not [!Equals ["", !Ref Env]] 
+  isSingleAccountSetup: !Equals ["single", !Ref Setup]
+  isMultiAccountSetup: !Equals ["multiple", !Ref Setup]   
 
 Rules: 
   Deployment: 
     Assertions:
       - Assert: !Equals 
         - !Ref AWS::AccountId
-        - !Ref TerraformAccountId
-        AssertDescription: "resources must be created in Terraform account"
+        - !Ref OperationalResourcesAccountId
+        AssertDescription: "resources must be created in log account"
 
 
 Resources: 
@@ -49,7 +56,7 @@ Resources:
           Action: '*'
           Principal: '*'
           Resource: 
-            - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
+            - Fn::ImportValue: !Sub "${Env}StateBucketArn"
           Condition:
             Bool:
               'aws:SecureTransport': false
@@ -70,27 +77,41 @@ Resources:
         ######################################################
         - Sid: WhitelistPrincipals
           Effect: Deny
-          Action: '*'
+          Action: 'S3:*'
           Principal: '*'
           Resource: 
-            - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
+            - Fn::ImportValue: !Sub "${Env}StateBucketArn"
             - !Join
               - ''
-              - - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
+              - - Fn::ImportValue: !Sub "${Env}StateBucketArn"
                 - '/*'
           Condition:
             StringNotLike:
               aws:userId:
+                - Fn::If:
+                  - isSingleAccountSetup
+                  - !Sub
+                    - '${SingleSetupRoleId}:*'
+                    - SingleSetupRoleId: !ImportValue SnglTfStateRoleId
+                  - !Ref 'AWS::NoValue'
+                - Fn::If:
+                  - isMultiAccountSetup
+                  - !Sub
+                    - '${MultipleSetupRoleId}:*'
+                    - MultipleSetupRoleId: !ImportValue MultiTfStateRoleId
+                  - !Ref 'AWS::NoValue'
                 - !Ref AWS::AccountId
-                - !ImportValue BackendRoleId
+                - !Sub
+                  - '${AccountId}:*'
+                  - AccountId: !Ref AWS::AccountId
                 - !Sub 
-                  - '${tfAdminRoleId}:*'
-                  - tfAdminRoleId: !Ref TerraformAdminRoleId
+                  - '${AdminRoleId}:*'
+                  - AdminRoleId: !Ref AdminRoleId
             ForAnyValue:StringNotLike:
               aws:PrincipalArn:
-                - !Sub "arn:aws:iam::${UserMgtAccountId}:user/${Username}"
+                - !Sub "arn:aws:iam::${ResourceAccessorAccountId}:user/${Username}"
         #######################################################
-        ## Grant S3FullAccess to TerrformAdminRole; role 
+        ## Grant S3FullAccess to AdminRole; role 
         ## that used to create Cloudformation Stacks.
         ##
         ## Note: Without this policy, the next policy locks 
@@ -105,12 +126,12 @@ Resources:
           Action: 's3:*'
           Principal:
             AWS: 
-              - !Sub "arn:aws:iam::${TerraformAccountId}:role/${TerrformAdminRole}"
+              - !Sub "arn:aws:iam::${OperationalResourcesAccountId}:role/${AdminRoleName}"
           Resource: 
-            - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
+            - Fn::ImportValue: !Sub "${Env}StateBucketArn"
             - !Join
               - ''
-              - - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
+              - - Fn::ImportValue: !Sub "${Env}StateBucketArn"
                 - '/*'
         #####################################################
         ## If principal is an assumed role and the assumed 
@@ -126,12 +147,12 @@ Resources:
             - 's3:GetBucketVersioning'
           Principal: 
             AWS: 
-              - !Sub "arn:aws:iam::${TerraformAccountId}:role/${BackendRole}"
+              - !Sub "arn:aws:iam::${OperationalResourcesAccountId}:role/${TfStateRoleName}"
           Resource:
-            - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
+            - Fn::ImportValue: !Sub "${Env}StateBucketArn"
             - !Join
               - ''
-              - - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
+              - - Fn::ImportValue: !Sub "${Env}StateBucketArn"
                 - '/*'
         #####################################################
         ## Restrict 's3:DeleteObject', which enables the 
@@ -140,7 +161,7 @@ Resources:
         ##
         ## Granting DeleteObject is safe because we have 
         ## versioning enabled on the bucket. The action we
-        ## absoluted do not permit to any user or role is 
+        ## absolutely do not permit to any user or role is 
         ## DeleteObjectVersion - because delection object 
         ## version results in permanently deleting state.
         ##
@@ -152,7 +173,7 @@ Resources:
             - 's3:DeleteObject'
           Principal: 
             AWS:
-              - !Sub "arn:aws:iam::${UserMgtAccountId}:root"
+              - !Sub "arn:aws:iam::${ResourceAccessorAccountId}:root"
           Condition:
             Bool: 
               aws:MultiFactorAuthPresent: true
@@ -162,8 +183,8 @@ Resources:
               aws:PrincipalTag/Terraformers:
                 - !Ref ValueOfUserTag
           Resource: 
-            - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
+            - Fn::ImportValue: !Sub "${Env}StateBucketArn"
             - !Join
               - ''
-              - - Fn::ImportValue: !Sub "${Env}-StateBucketArn"
+              - - Fn::ImportValue: !Sub "${Env}StateBucketArn"
                 - '/*'

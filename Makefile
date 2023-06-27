@@ -1,252 +1,320 @@
-##----------------------------------------------------------------------
-## Retrieve profile names
-##----------------------------------------------------------------------
-userMgtProfile := $(shell yq e '.vars.userMgt.profile' vars.yaml)
-devAcctProfile := $(shell yq e '.vars.dev.profile' vars.yaml)
-stgAcctProfile := $(shell yq e '.vars.stg.profile' vars.yaml)
-prdAcctProfile := $(shell yq e '.vars.prd.profile' vars.yaml)
+##-----------------------------------------------------------------------
+## Retrieve Details Used in Single Account Setup
+##-----------------------------------------------------------------------
+singleAccountProfile := $(shell yq e '.profile' vars.yaml)
+singleAccountId := $(shell aws --profile ${singleAccountProfile}\
+	sts get-caller-identity | jq -r .Account\
+)
 
-tfProfile := $(shell yq e '.vars.terraform.profile' vars.yaml)
-workloadacctprofile := $(shell yq e '.vars.${env}.profile' vars.yaml)
-
-
-
-##----------------------------------------------------------------------
-## Retrieve profile acccount numbers
-##----------------------------------------------------------------------
-userMgtAcctId := $(shell aws --profile ${userMgtProfile} \
+##-----------------------------------------------------------------------
+## Retrieve Details Used in Multiple Account Setup
+##-----------------------------------------------------------------------
+logProfile := $(shell yq e '.log.profile' vars.yaml)
+logAccountId := $(shell aws --profile ${logProfile} \
 	sts get-caller-identity | jq -r .Account \
 )
 
-devAcctId := $(shell aws --profile ${devAcctProfile} \
+iAmProfile := $(shell yq e '.iam.profile' vars.yaml)
+iAmAccountId := $(shell aws --profile ${iAmProfile} \
 	sts get-caller-identity | jq -r .Account \
 )
 
-stgAcctId := $(shell aws --profile ${stgAcctProfile} \
-	sts get-caller-identity | jq -r .Account \
-)
-
-prdAcctId := $(shell aws --profile ${prdAcctProfile} \
-	sts get-caller-identity | jq -r .Account \
-)
-
-tfAcctId := $(shell aws --profile ${tfProfile} \
-	sts get-caller-identity | jq -r .Account \
-)
-
-workloadacctid := $(shell aws --profile ${workloadacctprofile} \
-	sts get-caller-identity | jq -r .Account \
-)
-
-
-
-##----------------------------------------------------------------------
-## Retrieve Terraform Account Admin RoleId
-##----------------------------------------------------------------------
-tfAdminRole := $(shell yq e '.vars.terraform.admin' vars.yaml) 
-
-tfAdminRoleId := $(shell aws --profile ${tfProfile} \
-	iam get-role --role-name ${tfAdminRole} | jq -r .Role.RoleId \
-)
-
-
-
-##----------------------------------------------------------------------
-## Create Terraform Operational Resources
-##----------------------------------------------------------------------
-.PHONY: backendResources
-backendResources: 
-ifndef env
-	@echo "env is not defined"
-	exit 1
-endif
-	aws cloudformation deploy \
-		--output json\
-		--profile ${tfProfile}\
-		--template-file 0-backendResources.cf.yaml\
-		--stack-name ${env}TfBackendResources\
-		--region $(shell yq e '.vars.${env}.region' vars.yaml)\
-		--parameter-overrides\
-		Env=${env}\
-		Region=$(shell yq e '.vars.${env}.region' vars.yaml)\
-		TerraformAccountId=$(tfAcctId)\
-		LogBucketName=$(shell yq e '.vars.${env}.project.lbucket' vars.yaml)\
-		LockTableName=$(shell yq e '.vars.${env}.project.locktable' vars.yaml)\
-		StateBucketName=$(shell yq e '.vars.${env}.project.sbucket' vars.yaml)
-
-
-
-.PHONY: logBucketPolicy
-logBucketPolicy:
-ifndef env
-	@echo "env is not defined"
-	exit 1
-endif
-	aws cloudformation deploy \
-		--output json\
-		--profile ${tfProfile}\
-		--template-file 1-logBucketPolicy.cf.yaml\
-		--stack-name ${env}TfLogBucketPolicy\
-		--region $(shell yq e '.vars.${env}.region' vars.yaml)\
-		--parameter-overrides\
-		Env=${env}\
-		LogBucketName=$(shell yq e '.vars.${env}.project.lbucket' vars.yaml)\
-		TerraformAccountId=$(tfAcctId)
-
-
-
-.PHONY: backendRole
-backendRole:
-ifndef env
-	@echo "env is not defined"
-	exit 1
-endif
-	aws cloudformation deploy \
-		--output json\
-		--profile ${tfProfile}\
-		--template-file 2-backendRole.cf.yaml\
-		--stack-name create-role-used-to-access-terrform-backend\
-		--capabilities CAPABILITY_NAMED_IAM\
-		--parameter-overrides\
-		Env=${env}\
-		UserMgtAccountId=${userMgtAcctId}\
-		TerraformAccountId=${tfAcctId}\
-		ValueOfUserTag=$(shell yq e '.vars.userMgt.tagValue' vars.yaml)\
-		SessionDuration=$(shell yq e '.vars.terraform.session' vars.yaml)\
-		PolicyName=$(shell yq e '.vars.terraform.policyname' vars.yaml)\
-		BackendRole=$(shell yq e '.vars.terraform.rolename' vars.yaml)
-
-
-
-.PHONY: backendGroup
-backendGroup:
-	aws cloudformation deploy \
-		--output json\
-		--profile ${userMgtProfile}\
-		--template-file 3-backendGroup.cf.yaml\
-		--stack-name create-group-used-to-manage-access-to-terraform-commands\
-		--capabilities CAPABILITY_NAMED_IAM\
-		--parameter-overrides\
-		UserMgtAccountId=${userMgtAcctId}\
-		TerraformAccountId=${tfAcctId}\
-		GroupName=$(shell yq e '.vars.group.name' vars.yaml)\
-		PolicyName=$(shell yq e '.vars.group.backend.policyname' vars.yaml)\
-		PolicyDesc=$(shell yq e '.vars.group.backenddescription' vars.yaml)\
-		BackendRole=$(shell yq e '.vars.terraform.rolename' vars.yaml)
-
-
-
-.PHONY: backendUser
-backendUser:
-	aws cloudformation deploy\
-		--output json\
-		--profile ${userMgtProfile}\
-		--template-file 4-backendUser.cf.yaml\
-		--stack-name create-user-permitted-to-run-terraform-commands\
-		--capabilities CAPABILITY_NAMED_IAM\
-		--parameter-overrides\
-		Username=$(shell yq e '.vars.userMgt.username' vars.yaml)\
-		GroupName=$(shell yq e '.vars.group.name' vars.yaml)\
-		UserMgtAccountId=${userMgtAcctId}\
-		UserTagKey=$(shell yq e '.vars.userMgt.tagkey' vars.yaml)\
-		ValueOfUserTag=$(shell yq e '.vars.userMgt.tagValue' vars.yaml)
-
-
-
-.PHONY: stateBucketPolicy
-stateBucketPolicy:
-ifndef env
-	@echo "env is not defined"
-	exit 1
-endif
-	aws cloudformation deploy\
-		--output json\
-		--profile ${tfProfile}\
-		--template-file 5-stateBucketPolicy.cf.yaml\
-		--stack-name ${env}TerraformStateBucketPolicy\
-		--region $(shell yq e '.vars.${env}.region' vars.yaml)\
-		--parameter-overrides\
-		Env=${env}\
-		Username=$(shell yq e '.vars.userMgt.username' vars.yaml)\
-		UserMgtAccountId=${userMgtAcctId}\
-		TerraformAccountId=$(tfAcctId)\
-		TerrformAdminRole=${tfAdminRole}\
-		TerraformAdminRoleId=${tfAdminRoleId}\
-		BackendRole=$(shell yq e '.vars.terraform.rolename' vars.yaml)\
-		ValueOfUserTag=$(shell yq e '.vars.userMgt.tagValue' vars.yaml)\
-		StateBucketName=$(shell yq e '.vars.${env}.project.sbucket' vars.yaml)
-
-
-
-.PHONY: workloadRole
-workloadRole:
+##-----------------------------------------------------------------------
+## Make Commands
+##-----------------------------------------------------------------------
+.PHONY: tf-operational-resources 
 ifndef env 
-	@echo "env is not defined"
-	exit 1
+tf-operational-resources:	
+	@echo "single account setup"
+	aws cloudformation deploy\
+		--output json\
+		--profile ${singleAccountProfile}\
+		--template-file 0Tf-operational-resources.cf.yaml\
+		--stack-name create-tf-operational-resources\
+		--region $(shell yq e '.region' vars.yaml)\
+		--parameter-overrides\
+		Env=${env}\
+		Region=$(shell yq e '.region' vars.yaml)\
+		OperationalResourcesAccountId=${singleAccountId}\
+		LogBucketName=$(shell yq e '.logBucket' vars.yaml)\
+		LockTableName=$(shell yq e '.lockTable' vars.yaml)\
+		StateBucketName=$(shell yq e '.stateBucket' vars.yaml)
+else
+tf-operational-resources:
+	@echo "$(info current env is $(value env))"
+	aws cloudformation deploy\
+		--output json\
+		--profile ${logProfile}\
+		--template-file 0Tf-state-resources.cf.yaml\
+		--stack-name create-${env}-tf-state-resources\
+		--region $(shell yq e '.${env}.region' vars.yaml)\
+		--parameter-overrides\
+		Env=${env}\
+		Region=$(shell yq e '.${env}.region' vars.yaml)\
+		OperationalResourcesAccountId=$(logAccountId)\
+		LogBucketName=$(shell yq e '.${env}.logBucket' vars.yaml)\
+		LockTableName=$(shell yq e '.${env}.lockTable' vars.yaml)\
+		StateBucketName=$(shell yq e '.${env}.stateBucket' vars.yaml)
 endif
+
+
+.PHONY: tf-state-role
+ifeq ($(setup), single)
+tf-state-role:
+	@echo "single account setup"
 	aws cloudformation deploy\
 		--output json\
-		--profile ${workloadacctprofile}\
-		--template-file 6-workloadRole.cf.yaml\
-		--stack-name addRoleUsed2CreateResourcesIn-DevStgPrd-Accts\
+		--profile ${singleAccountProfile}\
+		--template-file 1Tf-state-role.cf.yaml\
+		--stack-name create-tf-state-role-${setup}\
 		--capabilities CAPABILITY_NAMED_IAM\
 		--parameter-overrides\
-		WorkloadAccountId=${workloadacctid}\
-		BackendRole=$(shell yq e '.vars.terraform.rolename' vars.yaml)\
-		SessionDuration=$(shell yq e '.vars.${env}.session' vars.yaml)\
-		UserMgtAccountId=${userMgtAcctId}\
-		ValueOfUserTag=$(shell yq e '.vars.userMgt.tagValue' vars.yaml)
-
-
-.PHONY: workloadGroupPolicy
-workloadGroupPolicy:
+		Setup=${setup}\
+		ResourceAccessorAccountId=${singleAccountId}\
+		OperationalResourcesAccountId=${singleAccountId}\
+		ValueOfUserTag=$(shell yq e '.user.tagValue' vars.yaml)\
+		TfStateRoleName=$(shell yq e '.tfStateRole.${setup}.name' vars.yaml)\
+		MaxSession=$(shell yq e '.tfStateRole.${setup}.session' vars.yaml)\
+		PolicyName=$(shell yq e '.tfStateRole.${setup}.policyname' vars.yaml)\
+		ListOfLockTableArns=$(shell yq e '.lockTableArn' vars.yaml)\
+		ListOfStateBucketArns=$(shell yq e '.stateBucketArn' vars.yaml)
+else 
+ifeq ($(setup), multiple)
+tf-state-role:
 	aws cloudformation deploy\
 		--output json\
-		--profile ${userMgtProfile}\
-		--template-file 7-workloadPolicy.cf.yaml\
-		--stack-name addGroupPolicyUsed2CreateResourcesIn-DevStgPrd-Accts\
+		--profile ${logProfile}\
+		--template-file 1Tf-state-role.cf.yaml\
+		--stack-name create-tf-state-role-${setup}\
 		--capabilities CAPABILITY_NAMED_IAM\
 		--parameter-overrides\
-		UserMgtAccountId=${userMgtAcctId}\
-		GroupName=$(shell yq e '.vars.group.name' vars.yaml)\
-		PolicyName=$(shell yq e '.vars.group.workload.policyname' vars.yaml)\
-		PolicyDesc=$(shell yq e '.vars.group.workload.policydesc' vars.yaml)\
-		BackendRole=$(shell yq e '.vars.terraform.rolename' vars.yaml)\
-		DevelopmentAccountId=${devAcctId}
+		Setup=${setup}\
+		ResourceAccessorAccountId=${iAmAccountId}\
+		OperationalResourcesAccountId=${logAccountId}\
+		ValueOfUserTag=$(shell yq e '.user.tagValue' vars.yaml)\
+		TfStateRoleName=$(shell yq e '.tfStateRole.${setup}.name' vars.yaml)\
+		MaxSession=$(shell yq e '.tfStateRole.${setup}.session' vars.yaml)\
+		PolicyName=$(shell yq e '.tfStateRole.${setup}.policyname' vars.yaml)\
+		ListOfLockTableArns=$(shell yq e '.log.logTableArns' vars.yaml)\
+		ListOfStateBucketArns=$(shell yq e '.log.stateBucketArns' vars.yaml) 
+endif
+endif
 
 
-# .PHONY: add-staging-accountId-to-workloadGroupPolicy
-# add-staging-accountId-to-workloadGroupPolicy:
-# 	aws cloudformation update-stack\
-# 		--output json\
-# 		--profile ${userMgtProfile}\
-# 		--template-body file://7-workloadPolicy.cf.yaml\
-# 		--stack-name addGroupPolicyUsed2CreateResourcesIn-DevStgPrd-Accts\
-# 		--capabilities CAPABILITY_NAMED_IAM\
-# 		--parameters\
-# 		ParameterKey=UserMgtAccountId,UsePreviousValue=true\
-# 		ParameterKey=GroupName,UsePreviousValue=true\
-# 		ParameterKey=PolicyName,UsePreviousValue=true\
-# 		ParameterKey=PolicyDesc,UsePreviousValue=true\
-# 		ParameterKey=BackendRole,UsePreviousValue=true\
-# 		ParameterKey=DevelopmentAccountId,UsePreviousValue=true\
-# 		ParameterKey=StagingAccountId,ParameterValue=${stgAcctId}
+.PHONY: group
+ifeq ($(setup), single)
+group:
+	@echo $(info account setup is $(value setup) )
+	aws cloudformation deploy \
+		--output json\
+		--profile ${singleAccountProfile}\
+		--template-file 2Group.cf.yaml\
+		--stack-name create-group-4-SingleAccountSetup\
+		--capabilities CAPABILITY_NAMED_IAM\
+		--parameter-overrides\
+		GroupName=$(shell yq e '.group.${setup}.name' vars.yaml)\
+		GroupPolicyName=$(shell yq e '.group.${setup}.policyname' vars.yaml)\
+		GroupPolicyDesc=$(shell yq e '.group.${setup}.policydesc' vars.yaml)\
+		TfStateRoleName=$(shell yq e '.tfStateRole.${setup}.name' vars.yaml)\
+		PowerUserPolicyArn=$(shell yq e '.group.${setup}.powerarn' vars.yaml)\
+		ResourceAccessorAccountId=${singleAccountId}\
+		OperationalResourcesAccountId=${singleAccountId}
+else
+ifeq ($(setup), multiple)
+group:
+	@echo $(info account setup is $(value setup) )
+	aws cloudformation deploy \
+		--output json\
+		--profile ${iAmProfile}\
+		--template-file 2Group.cf.yaml\
+		--stack-name create-group-4-MultiAccountSetup\
+		--capabilities CAPABILITY_NAMED_IAM\
+		--parameter-overrides\
+		GroupName=$(shell yq e '.group.${setup}.name' vars.yaml)\
+		GroupPolicyName=$(shell yq e '.group.${setup}.policyname' vars.yaml)\
+		GroupPolicyDesc=$(shell yq e '.group.${setup}.policydesc' vars.yaml)\
+		TfStateRoleName=$(shell yq e '.tfStateRole.${setup}.name' vars.yaml)\
+		PowerUserPolicyArn=$(shell yq e '.group.${setup}.powerarn' vars.yaml)\
+		ResourceAccessorAccountId=${iAmAccountId}\
+		OperationalResourcesAccountId=${logAccountId}
+endif
+endif
 
 
-# .PHONY: add-production-accountId-to-workloadGroupPolicy
-# add-production-accountId-to-workloadGroupPolicy:
-# 	aws cloudformation update-stack\
-# 		--output json\
-# 		--profile ${userMgtProfile}\
-# 		--template-body file://7-workloadPolicy.cf.yaml\
-# 		--stack-name addGroupPolicyUsed2CreateResourcesIn-DevStgPrd-Accts\
-# 		--capabilities CAPABILITY_NAMED_IAM\
-# 		--parameters\
-# 		ParameterKey=UserMgtAccountId,UsePreviousValue=true\
-# 		ParameterKey=GroupName,UsePreviousValue=true\
-# 		ParameterKey=PolicyName,UsePreviousValue=true\
-# 		ParameterKey=PolicyDesc,UsePreviousValue=true\
-# 		ParameterKey=BackendRole,UsePreviousValue=true\
-# 		ParameterKey=DevelopmentAccountId,UsePreviousValue=true\
-# 		ParameterKey=StagingAccountId,UsePreviousValue=true\
-# 		ParameterKey=ProductionAccountId,ParameterValue=${prdAcctId}
+.PHONY: user
+ifeq ($(setup), single)
+user:
+	@echo $(info account setup is $(value setup) )	
+	aws cloudformation deploy\
+		--output json\
+		--stack-name create-user-4-SingleAccountSetup\
+		--profile ${singleAccountProfile}\
+		--template-file 3User.cf.yaml\
+		--capabilities CAPABILITY_NAMED_IAM\
+		--parameter-overrides\
+		Setup=${setup}\
+		ResourceAccessorAccountId=${singleAccountId}\
+		Username=$(shell yq e '.user.name' vars.yaml)\
+		UserTagKey=$(shell yq e '.user.tagkey' vars.yaml)\
+		ValueOfUserTag=$(shell yq e '.user.tagValue' vars.yaml)\
+		UserGroup=$(shell yq e '.group.${setup}.name' vars.yaml)
+else
+ifeq ($(setup), multiple)
+user:
+	@echo $(info env is $(value env) )
+	aws cloudformation deploy\
+		--output json\
+		--profile ${iAmProfile}\
+		--stack-name create-user-4-MultiAccountSetup\
+		--template-file 3User.cf.yaml\
+		--capabilities CAPABILITY_NAMED_IAM\
+		--parameter-overrides\
+		Setup=${setup}\
+		ResourceAccessorAccountId=${iAmAccountId}\
+		Username=$(shell yq e '.user.name' vars.yaml)\
+		UserTagKey=$(shell yq e '.user.tagkey' vars.yaml)\
+		ValueOfUserTag=$(shell yq e '.user.tagValue' vars.yaml)\
+		UserGroup=$(shell yq e '.group.${setup}.name' vars.yaml)
+endif
+endif
+
+
+.PHONY: tf-log-bucket-policy
+ifndef env 
+tf-log-bucket-policy:
+	@echo "single account setup"
+	aws cloudformation deploy \
+		--output json\
+		--profile ${singleAccountProfile}\
+		--template-file 4Tf-log-bucket-policy.cf.yaml\
+		--stack-name add-tf-logBucket-policy\
+		--region $(shell yq e '.region' vars.yaml)\
+		--parameter-overrides\
+		Env=${env}\
+		OperationalResourcesAccountId=${singleAccountId}\
+		LogBucketName=$(shell yq e '.logBucket' vars.yaml)
+else
+tf-log-bucket-policy:
+	@echo "$(info current env is $(value env))"
+	aws cloudformation deploy \
+		--output json\
+		--profile ${logProfile}\
+		--template-file 4Tf-log-bucket-policy.cf.yaml\
+		--stack-name add-${env}-tf-logBucket-policy\
+		--region $(shell yq e '.${env}.region' vars.yaml)\
+		--parameter-overrides\
+		Env=${env}\
+		OperationalResourcesAccountId=$(logAccountId)\
+		LogBucketName=$(shell yq e '.${env}.logBucket' vars.yaml)
+endif
+
+
+.PHONY: tf-state-bucket-policy
+ifndef env
+ifeq ($(setup), single)
+tf-state-bucket-policy:
+	@echo "$(info account setup is $(value setup) and env is not required)"
+	aws cloudformation deploy\
+		--output json\
+		--profile ${singleAccountProfile}\
+		--template-file 5Tf-state-bucket-policy.cf.yaml\
+		--stack-name add-tf-statebucket-policy\
+		--region $(shell yq e '.region' vars.yaml)\
+		--parameter-overrides\
+		Env=${env}\
+		Setup=${setup}\
+		Username=$(shell yq e '.user.name' vars.yaml)\
+		AdminRoleId=$(shell yq e '.adminRoleId' vars.yaml)\
+		AdminRoleName=$(shell yq e '.adminRoleName' vars.yaml)\
+		ValueOfUserTag=$(shell yq e '.user.tagValue' vars.yaml)\
+		StateBucketName=$(shell yq e '.stateBucket' vars.yaml)\
+		TfStateRoleName=$(shell yq e '.tfStateRole.${setup}.name' vars.yaml)\
+		ResourceAccessorAccountId=${singleAccountId}\
+		OperationalResourcesAccountId=$(singleAccountId)
+endif
+else
+ifeq ($(setup), multiple)
+ifdef env
+tf-state-bucket-policy:
+	@echo "$(info account setup is $(value setup) and env is required)"	
+	aws cloudformation deploy\
+		--output json\
+		--profile ${logProfile}\
+		--template-file 5Tf-state-bucket-policy.cf.yaml\
+		--stack-name add-${env}-tf-statebucket-policy\
+		--region $(shell yq e '.${env}.region' vars.yaml)\
+		--parameter-overrides\
+		Env=${env}\
+		Setup=${setup}\
+		Username=$(shell yq e '.user.name' vars.yaml)\
+		AdminRoleId=$(shell yq e '.adminRoleId' vars.yaml)\
+		AdminRoleName=$(shell yq e '.adminRoleName' vars.yaml)\
+		ValueOfUserTag=$(shell yq e '.user.tagValue' vars.yaml)\
+		StateBucketName=$(shell yq e '.${env}.stateBucket' vars.yaml)\
+		TfStateRoleName=$(shell yq e '.tfStateRole.${setup}.name' vars.yaml)\
+		ResourceAccessorAccountId=${iAmAccountId}\
+		OperationalResourcesAccountId=${logAccountId}
+endif
+endif
+endif
+
+
+
+.PHONY: tf-workload-role
+ifndef env
+tf-workload-role:
+	@echo "skip; no workloadRole for single accout setup"
+else
+wkLoadProfile := $(shell yq e '.${env}.profile' vars.yaml)
+wkLoadAccountId := $(shell aws --profile ${wkLoadProfile} \
+	sts get-caller-identity | jq -r .Account \
+)
+tf-workload-role:
+	aws cloudformation deploy\
+		--output json\
+		--profile $(value wkLoadProfile)\
+		--template-file 6Tf-workload-role.cf.yaml\
+		--stack-name add-${env}-WorkloadRole\
+		--capabilities CAPABILITY_NAMED_IAM\
+		--parameter-overrides\
+		WorkloadAccountId=${wkLoadAccountId}\
+		ResourceAccessorAccountId=${iAmAccountId}\
+		ValueOfUserTag=$(shell yq e '.user.tagValue' vars.yaml)\
+		TfStateRoleName=$(shell yq e '.tfStateRole.multiple.name' vars.yaml)\
+		MaxSession=$(shell yq e '.${env}.session' vars.yaml)	
+endif
+
+
+.PHONY: tf-workload-policy ##Note
+ifndef env
+tf-workload-policy:	
+	@echo "skip; no workload for single account setup"
+else
+wkLoadProfile := $(shell yq e '.${env}.profile' vars.yaml)
+wkLoadAccountId := $(shell aws --profile ${wkLoadProfile} \
+	sts get-caller-identity | jq -r .Account \
+)
+tf-workload-policy:
+	aws cloudformation deploy\
+		--output json\
+		--profile ${iAmProfile}\
+		--template-file 7Tf-workload-policy.cf.yaml\
+		--stack-name add-${env}-workload-policy\
+		--capabilities CAPABILITY_NAMED_IAM\
+		--parameter-overrides\
+		${dev}WorkloadAccountId=${wkLoadAccountId}\
+		ResourceAccessorAccountId=${iAmAccountId}\
+		GroupName=$(shell yq e '.group.multiple.name' vars.yaml)\
+		PolicyName=$(shell yq e '.workload.policy.name' vars.yaml)\
+		PolicyDesc=$(shell yq e '.workload.policy.desc' vars.yaml)\
+		TfStateRoleName=$(shell yq e '.tfStateRole.multiple.name' vars.yaml)
+endif
+
+
+##-----------------------------------------------------------------------
+## Print List of Make Commands
+##-----------------------------------------------------------------------
+
+.PHONY: list
+list:
+	@LC_ALL=C $(MAKE) -pRrq -f $(firstword $(MAKEFILE_LIST)) : 2>/dev/null | awk -v RS= -F: '/(^|\n)# Files(\n|$$)/,/(^|\n)# Finished Make data base/ {if ($$1 !~ "^[#.]") {print $$1}}' | sort | grep -E -v -e '^[^[:alnum:]]' -e '^$@$$'
