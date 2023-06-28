@@ -1,12 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: creates policy that grants users permission to create resources in workload accounts
+Description: creates policy that grants principals in a user management account permission to create resources in workload accounts
 
 Parameters:
   GroupName:
     Type: String
   PolicyName:
-    Type: String
-  PolicyDesc:
     Type: String
   TfStateRoleName:
     Type: String
@@ -34,11 +32,11 @@ Resources:
       Groups: 
         - !Ref GroupName
       ManagedPolicyName: !Ref PolicyName
-      Description: !Sub "grants permission to ${PolicyDesc}"
+      Description: !Sub "grants permission to CRUD resources using Terraform by assuming ${TfStateRoleName} in workload accounts"
       PolicyDocument:
         Version: 2012-10-17
         Statement:
-          - Sid: !Ref PolicyDesc
+          - Sid: CRUDResourcesViaTerraform
             Effect: Allow
             Action:
               - 'sts:AssumeRole'

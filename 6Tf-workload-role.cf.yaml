@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: creates role that users need to assume to create resources in workload accounts
+Description: creates a role in a workload account that users need to assume in order to create resourcs, via terraform, within the workload account
 
 
 Parameters:

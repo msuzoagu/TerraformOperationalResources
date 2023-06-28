@@ -22,6 +22,7 @@ iAmAccountId := $(shell aws --profile ${iAmProfile} \
 ##-----------------------------------------------------------------------
 ## Make Commands
 ##-----------------------------------------------------------------------
+
 .PHONY: tf-operational-resources 
 ifndef env 
 tf-operational-resources:	
@@ -45,7 +46,7 @@ tf-operational-resources:
 	aws cloudformation deploy\
 		--output json\
 		--profile ${logProfile}\
-		--template-file 0Tf-state-resources.cf.yaml\
+		--template-file 0Tf-operational-resources.cf.yaml\
 		--stack-name create-${env}-tf-state-resources\
 		--region $(shell yq e '.${env}.region' vars.yaml)\
 		--parameter-overrides\
@@ -161,7 +162,7 @@ user:
 else
 ifeq ($(setup), multiple)
 user:
-	@echo $(info env is $(value env) )
+	@echo $(info account setup is $(value setup) )
 	aws cloudformation deploy\
 		--output json\
 		--profile ${iAmProfile}\
@@ -302,11 +303,10 @@ tf-workload-policy:
 		--stack-name add-${env}-workload-policy\
 		--capabilities CAPABILITY_NAMED_IAM\
 		--parameter-overrides\
-		${dev}WorkloadAccountId=${wkLoadAccountId}\
+		WorkloadAccountId=${wkLoadAccountId}\
 		ResourceAccessorAccountId=${iAmAccountId}\
 		GroupName=$(shell yq e '.group.multiple.name' vars.yaml)\
-		PolicyName=$(shell yq e '.workload.policy.name' vars.yaml)\
-		PolicyDesc=$(shell yq e '.workload.policy.desc' vars.yaml)\
+		PolicyName=$(shell yq e '.workload.policyname' vars.yaml)\
 		TfStateRoleName=$(shell yq e '.tfStateRole.multiple.name' vars.yaml)
 endif
 

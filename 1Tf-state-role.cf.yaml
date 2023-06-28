@@ -46,7 +46,7 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties: 
       RoleName: !Ref TfStateRoleName
-      Description: assume role to run Terraform commands
+      Description: grants READ/WRITE access to Terraform Operational Resources
       MaxSessionDuration: !Ref MaxSession
       ManagedPolicyArns:
         - !Ref RolePolicy

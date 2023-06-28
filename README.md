@@ -10,7 +10,7 @@ If you are interested, you can read my [post]() outlining how I use this to get 
 
 	This template can be adapted to suit either a [__Single AWS Account Setup__](https://docs.aws.amazon.com/whitepapers/latest/organizing-your-aws-environment/single-aws-account.html) or a [__Multiple AWS Accounts Setup__](https://docs.aws.amazon.com/whitepapers/latest/organizing-your-aws-environment/benefits-of-using-multiple-aws-accounts.html). 
 
-	Multiple Accounts can be manages as separate entities but I personally find creating and managing accounts via [AWS Organizations](https://docs.aws.amazon.com/controltower/latest/userguide/organizations.html) easiest.  The ability to access member accounts as an Admin user via [OrganizationAccoutAccessRole](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_accounts_access.html) makes it easy to create the initial operational resources needed to get started codifying infrastructure with Terraform. 
+	Multiple Accounts can be manages as separate entities but I personally find creating and managing accounts via [AWS Organizations](https://docs.aws.amazon.com/controltower/latest/userguide/organizations.html) easiest.  The ability to access member accounts as an Admin user via [OrganizationAccountAccessRole](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_accounts_access.html) makes it easy to create the initial operational resources needed to get started codifying infrastructure with Terraform. 
 
 2. Workload Accounts 
 
@@ -35,7 +35,7 @@ If you are interested, you can read my [post]() outlining how I use this to get 
 
 4. [cfn-lint](https://github.com/aws-cloudformation/cfn-lint). 
 
-5. AWS user with admin access in the [trusting account](https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_cross-account-with-roles.html). This is the user who will, via Cloudformation, deploy/create the Terraform backend resources. Or if using AWS Org, an admin user with [OrganizationAccoutAccessRole](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_accounts_access.html) 
+5. AWS user with admin access in the [trusting account](https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_cross-account-with-roles.html). This is the user who will, via Cloudformation, deploy/create the Terraform backend resources. Or if using AWS Org, an admin user with [OrganizationAccountAccessRole](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_accounts_access.html) 
 
 6. Existence of named profiles in `$HOME/.aws/config`. Edits can be made to accomodate your needs. 
 
@@ -68,40 +68,63 @@ Time permitting, will introduce the use of macros.
 ## Make Commands
 List of available commands is displayed via `make list`
 
-1. *make tf-operational-resources*: adds operational resources 
+1. __make tf-operational-resources__: adds operational resources 
 	
-	+ relies on the presence/absence of `env=${arg}` flag. 
+	+ relies on the presence/absence of `env=${arg}` flag
 	
-	+ when `env` flag is not set, a single aws account setup is presumed and only a single set of operation resources are created in account specified by __.profile__ section of configuration file
+	+ when `env` flag is not set, a single aws account setup is presumed and only a single set of operation resources are created in account specified by *.profile* section of configuration file
 	
 	+ when `env` flag is set, a multiple aws accounts setup is presumed and a unique set of terraform operational resources is created. For example, if `env=dev` then this command creates a statebucket, a logbucket, and a locktable 
-		* these operatonal resources are created in the account specified in the __.${env}.log.profile__ section of the configuration file. 
+		* these operatonal resources are created in the account specified in *.${env}.log.profile* section of configuration file 
 		* the assumption is that all terraform operational resources (state buckets, log buckets, kms keys, and lock tables) are created in a separate AWS log account 
 
 
-2. *make tf-state-role*: creates a role users must assume to READ/WRITE terraform state
+2. __make tf-state-role__: creates a role users must assume to READ/WRITE terraform state
 	
 	+ requires a `setup` flag which must be one of "single" or "multiple"
-		* if a single account setup, role is created in account specified by __.profile__ section of configuration file
+		* if a single account setup, role is created in account specified by *.profile* section of configuration file
 		
-		* if multiple account setup, role is created in account specified by the __.log.profile__ section of configuration file
+		* if multiple account setup, role is created in account specified by the *.log.profile* section of configuration file
 	
 	+ requires StateBucketArns and LockTableArns exported in `make tf-operational-resources`
 			- when multiple accoount setup, edit template to include all StateBucketArns and LockTableArns; example provided in template
 
-3. *make group*: creates a group users must belong to in order to assume the role created by `make tf-state-role`
+3. __make group__: creates a group users must belong to in order to assume the role created by `make tf-state-role`
+	
+	+ requires a `setup` flag which must be one of "single" or "multiple"
+		* if a single account setup, group is created in account specified by *.profile* section of configuration file
+		
+		* if multiple account setup, group is created in account specified by the *.log.profile* section of configuration file
 
-4. *make user*: creates and adds a user to the group created by `make group`
 
-5. *make tf-log-bucket-policy*: adds bucket policy to terraform log buckets
+4. __make user__: creates and adds a user to the group created by `make group`
+	
+	+ requires a `setup` flag which must be one of "single" or "multiple"
+		* if a single account setup, group is created in account specified by *.profile* section of configuration file
+		
+		* if multiple account setup, group is created in account specified by the *.log.profile* section of configuration file
 
 
-6. *make tf-state-bucket-policy*: adds a bucket policy to each state bucket created by `make tf-operational-resources`
+5. __make tf-log-bucket-policy__: adds bucket policy to terraform log buckets
+	
+	+ relies on the presence/absence of `env=${arg}` flag
+	+ see notes under *make tf-operational-resources* 
+	
+
+6. __make tf-state-bucket-policy__: adds a bucket policy to each state bucket created by `make tf-operational-resources`
+	
+	+ relies on the presence/absence of `env=${arg}` flag
+	+ see notes under *make tf-operational-resources* 
 	+ uses output(s) exported by `make tf-operational-resources` 
 
 
-7. *make tf-workload-role*: adds a role to a workload account
+7. __make tf-workload-role__: adds a role to a workload account
+	
+	+ relies on `env` flag to determine what workload account role grants access to
 	
 
 8. *make tf-workload-policy*: adds policy to group created by `make group`
+
+	+ relies on `env` flag to determine what workload account to create policy for
+
 	
