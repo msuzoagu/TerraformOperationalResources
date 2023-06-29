@@ -11,8 +11,6 @@ Parameters:
     Type: String
   GroupPolicyName:
     Type: String
-  GroupPolicyDesc:
-    Type: String
   ResourceAccessorAccountId:
     Type: String
   OperationalResourcesAccountId:
@@ -53,11 +51,11 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       ManagedPolicyName: !Ref GroupPolicyName 
-      Description: !Sub "grants permission to ${GroupPolicyDesc}"
+      Description: !Sub "grants READ/WRITE permissions to terraform operational resources by assuming ${TfStateRoleName}"
       PolicyDocument:
         Version: 2012-10-17
         Statement:
-          - Sid: !Sub "${GroupPolicyDesc}"
+          - Sid: ReadWriteAccessToTerraformStateFiles
             Effect: Allow 
             Action: 
               - 'sts:AssumeRole'
