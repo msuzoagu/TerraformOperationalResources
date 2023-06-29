@@ -115,7 +115,6 @@ group:
 		--parameter-overrides\
 		GroupName=$(shell yq e '.group.${setup}.name' vars.yaml)\
 		GroupPolicyName=$(shell yq e '.group.${setup}.policyname' vars.yaml)\
-		GroupPolicyDesc=$(shell yq e '.group.${setup}.policydesc' vars.yaml)\
 		TfStateRoleName=$(shell yq e '.tfStateRole.${setup}.name' vars.yaml)\
 		PowerUserPolicyArn=$(shell yq e '.group.${setup}.powerarn' vars.yaml)\
 		ResourceAccessorAccountId=${singleAccountId}\
@@ -133,7 +132,6 @@ group:
 		--parameter-overrides\
 		GroupName=$(shell yq e '.group.${setup}.name' vars.yaml)\
 		GroupPolicyName=$(shell yq e '.group.${setup}.policyname' vars.yaml)\
-		GroupPolicyDesc=$(shell yq e '.group.${setup}.policydesc' vars.yaml)\
 		TfStateRoleName=$(shell yq e '.tfStateRole.${setup}.name' vars.yaml)\
 		PowerUserPolicyArn=$(shell yq e '.group.${setup}.powerarn' vars.yaml)\
 		ResourceAccessorAccountId=${iAmAccountId}\
@@ -286,7 +284,7 @@ tf-workload-role:
 endif
 
 
-.PHONY: tf-workload-policy ##Note
+.PHONY: tf-workload-policy 
 ifndef env
 tf-workload-policy:	
 	@echo "skip; no workload for single account setup"
