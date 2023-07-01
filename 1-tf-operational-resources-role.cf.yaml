@@ -2,29 +2,30 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: create role users must assume to gain READ/WRITE access to Terraform OperationalResources
 
 Parameters: 
-  ListOfLockTableArns:
+  Setup: 
+    Type: String  
+  RoleName: 
+    Type: String 
+  PolicyName:
+    Type: String
+  MaxSession:
+    Type: String
+  UserTagValue:
+    Type: String
+  LockTableArns:
     Type: CommaDelimitedList
     Description: >-
       comma-delimited list of exported lock table arns backendRole is granted access to
-  ListOfStateBucketArns:
+  StateBucketArns:
     Type: CommaDelimitedList
     Description: >
       comma-delimited list of exported state bucket arns backendRole 
       is granted access to
-  PolicyName:
-    Type: String
-  ValueOfUserTag:
-    Type: String
-  MaxSession:
-    Type: String
   ResourceAccessorAccountId:
     Type: String
   OperationalResourcesAccountId:
     Type: String
-  TfStateRoleName: 
-    Type: String 
-  Setup: 
-    Type: String
+
 
 Conditions: 
   isSingleAccountSetup: !Equals ["single", !Ref Setup]
@@ -37,16 +38,16 @@ Rules:
       - Assert: !Equals
         - !Ref AWS::AccountId
         - !Ref OperationalResourcesAccountId 
-        AssertDescription: "resources must be created in Terraform account"
+        AssertDescription: "resources must be created in OperationalResources account"
 
 Resources:
-  Role: 
+  OperationalResourcesRole: 
     Type: 'AWS::IAM::Role'
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
     Properties: 
-      RoleName: !Ref TfStateRoleName
-      Description: grants READ/WRITE access to Terraform Operational Resources
+      RoleName: !Ref RoleName
+      Description: assume to obtain access to Terraform Operational Resources
       MaxSessionDuration: !Ref MaxSession
       ManagedPolicyArns:
         - !Ref RolePolicy
@@ -66,7 +67,7 @@ Resources:
                   - "User"
               StringLike:
                 aws:PrincipalTag/Terraformers:
-                  - !Ref ValueOfUserTag
+                  - !Ref UserTagValue
                 sts:RoleSessionName:
                   - '${aws:username}'
   RolePolicy:
@@ -75,7 +76,7 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties: 
       ManagedPolicyName: !Ref PolicyName 
-      Description: !Sub "permissions for ${TfStateRoleName}"
+      Description: grants read/write access to Terraform Operational Resources
       PolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -85,10 +86,10 @@ Resources:
               - 's3:ListBucket'
               - 's3:GetBucketVersioning'
             Resource:
-              - Fn::ImportValue: !Select [0, !Ref ListOfStateBucketArns]
+              - Fn::ImportValue: !Select [0, !Ref StateBucketArns]
               ## Uncomment to update resources list 
-              # - Fn::ImportValue: !Select [1, !Ref ListOfStateBucketArns]
-              # - Fn::ImportValue: !Select [2, !Ref ListOfStateBucketArns]
+              # - Fn::ImportValue: !Select [1, !Ref StateBucketArns]
+              # - Fn::ImportValue: !Select [2, !Ref StateBucketArns]
 
           - Sid: AllowStateReadWrite
             Effect: Allow
@@ -98,15 +99,15 @@ Resources:
             Resource: 
               - !Join 
                 - ''
-                - - Fn::ImportValue: !Select [0, !Ref ListOfStateBucketArns]
+                - - Fn::ImportValue: !Select [0, !Ref StateBucketArns]
                   - /*
               # - !Join 
               #   - ''
-              #   - - Fn::ImportValue: !Select [1, !Ref ListOfStateBucketArns]
+              #   - - Fn::ImportValue: !Select [1, !Ref StateBucketArns]
               #     - /*
               # - !Join 
               #   - ''
-              #   - - Fn::ImportValue: !Select [2, !Ref ListOfStateBucketArns]
+              #   - - Fn::ImportValue: !Select [2, !Ref StateBucketArns]
               #     - /*
           - Sid: AllowStateLockReadWrite
             Effect: Allow
@@ -117,31 +118,37 @@ Resources:
               - 'dynamodb:DeleteItem'  
               - 'dynamodb:ListTagsOfResource'
             Resource: 
-              - !Join 
-                - ''
-                - - Fn::ImportValue: !Select [0, !Ref ListOfLockTableArns]
-                  - /*
-              # - !Join
-              #   - ''
-              #   - - Fn::ImportValue: !Select [1, !Ref ListOfLockTableArns]
-              #     - /*
-              # - !Join
-              #   - ''
-              #   - - Fn::ImportValue: !Select [2, !Ref ListOfLockTableArns]
-              #     - /*
+              - Fn::ImportValue: !Select [0, !Ref LockTableArns]
+              # - Fn::ImportValue: !Select [1, !Ref LockTableArns]
+              # - Fn::ImportValue: !Select [2, !Ref LockTableArns]
 
 
+# make export name of outputs unique so that we can update both this stack and stacks that depend on it. Accomplished this by appending value of ${Setup} to 
 Outputs:
   SingleAccountSetupRoleId:
     Condition: isSingleAccountSetup
-    Description: id of role
-    Value: !GetAtt Role.RoleId
+    Description: role id
+    Value: !GetAtt OperationalResourcesRole.RoleId
     Export:
-      Name: SnglTfStateRoleId
+      Name: OperationalResourcesRoleId
+
+  SingleAccountSetupRoleArn:
+    Condition: isSingleAccountSetup
+    Description: role arn
+    Value: !GetAtt OperationalResourcesRole.Arn
+    Export:
+      Name: OperationalResourcesRoleArn
 
   MultiAccountSetupRoleId:
     Condition: isMultiAccountSetup
-    Description: id of role
-    Value: !GetAtt Role.RoleId
+    Description: role id
+    Value: !GetAtt OperationalResourcesRole.RoleId
     Export:
-      Name: MultiTfStateRoleId
+       Name: OperationalResourcesRoleId
+
+  MultiAccountSetupRoleArn:
+    Condition: isMultiAccountSetup
+    Description: role arn
+    Value: !GetAtt OperationalResourcesRole.Arn
+    Export:
+       Name: OperationalResourcesRoleArn

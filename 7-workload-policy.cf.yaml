@@ -4,11 +4,11 @@ Description: creates policy that grants principals in a user management account 
 Parameters:
   GroupName:
     Type: String
-  PolicyName:
-    Type: String
-  TfStateRoleName:
+  WorkloadRoleName:
     Type: String
   WorkloadAccountId:
+    Type: String
+  WorkloadPolicyName:
     Type: String
   ResourceAccessorAccountId:
     Type: String  
@@ -20,7 +20,7 @@ Rules:
       - Assert: !Equals
         - !Ref AWS::AccountId
         - !Ref ResourceAccessorAccountId
-        AssertDescription: 'must be deployed in UserMgtAccount account'
+        AssertDescription: 'must be deployed in ResourceAccessorAccountId account'
 
 
 Resources:
@@ -31,8 +31,8 @@ Resources:
     Properties:
       Groups: 
         - !Ref GroupName
-      ManagedPolicyName: !Ref PolicyName
-      Description: !Sub "grants permission to CRUD resources using Terraform by assuming ${TfStateRoleName} in workload accounts"
+      ManagedPolicyName: !Ref WorkloadPolicyName
+      Description: !Sub "grants permission to CRUD resources using Terraform by assuming ${WorkloadRoleName} in workload accounts"
       PolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -41,5 +41,5 @@ Resources:
             Action:
               - 'sts:AssumeRole'
             Resource:
-              - !Sub "arn:aws:iam::${WorkloadAccountId}:role/${TfStateRoleName}"
+              - !Sub "arn:aws:iam::${WorkloadAccountId}:role/${WorkloadRoleName}"
   
