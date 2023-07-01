@@ -39,7 +39,7 @@ If you are interested, you can read my [post]() outlining how I use this to get 
 
 6. Existence of named profiles in `$HOME/.aws/config`. Edits can be made to accomodate your needs. 
 
-7. Depending on your aws account setup, you will need either a `single.yaml` or a `multiple.yaml` configuration file. See [sample.single.yaml](https://github.com/msuzoagu/TerraformOperationalResources/blob/8b8668a46c7baf29ed8b19b5cfbb14b76cea06ab/simple.yaml) or [sample.multiple.yaml]()for samples.
+7. Depending on your aws account setup, you will need either a `single.yaml` or a `multiple.yaml` configuration file. See [sample.single.yaml](https://github.com/msuzoagu/TerraformOperationalResources/blob/main/sample.single.yaml) or [sample.multiple.yaml](https://github.com/msuzoagu/TerraformOperationalResources/blob/main/sample.multiple.yaml)for samples.
 
 
 ## AWS Account Setup: Single vs Multiple
@@ -60,12 +60,12 @@ The exceptions, __make tf-operational-resources-role__ and __make group__ rely o
 ## Limitations/Todo
 At the moment, this template does not implement the use of [Cloudformation Macros](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/template-macros.html), which I believe is the only way to handle dynamic creation of resources. 
 
-Therefore some templates, for example [__1-tf-operational-resources-role.cf.yaml__](https://github.com/msuzoagu/TerraformOperationalResources/blob/8b8668a46c7baf29ed8b19b5cfbb14b76cea06ab/1-tf-operational-resources-role.cf.yaml), need to be edited before use. 
+Therefore some templates, for example [__1-tf-operational-resources-role.cf.yaml__](https://github.com/msuzoagu/TerraformOperationalResources/blob/main/0-tf-operational-resources.cf.yaml), need to be edited before use. 
 
 Time permitting, will introduce the use of macros.
 
 
-## Make Commands: Single and Multiple Account Setups
+## Make Commands: Single Account and Multiple Accounts Setups
 List of available commands is displayed via `make list`
 
 1. __make tf-operational-resources__: adds operational resources 
@@ -121,7 +121,7 @@ List of available commands is displayed via `make list`
 
 ## Make Commands: Multiple Account Setup Only
 
-The following commands apply only to a multi-aws-account setup
+The following commands apply only to a multiple-aws-accounts setup
 
 1. __make tf-workload-role__: adds a role to a workload account
 	
