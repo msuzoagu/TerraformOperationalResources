@@ -1,4 +1,4 @@
-# Introductions
+# Introduction
 Inspired by [Chris Kent](https://thirstydeveloper.io/), this repository implements a skeleton repository used to create operational resources for Terraform. It uses Cloudformation as a workflow tool. 
 
 If you are interested, you can read my [post]() outlining how I use this to get projects up and running.
@@ -66,7 +66,6 @@ Time permitting, will introduce the use of macros.
 
 
 ## Make Commands: Single Account and Multiple Accounts Setups
-List of available commands is displayed via `make list`
 
 1. __make tf-operational-resources__: adds operational resources 
 	
@@ -134,4 +133,6 @@ The following commands apply only to a multiple-aws-accounts setup
 	+ relies on `env` flag to determine: 
 		* what workload accounts group members can create resources in via terraform 
 
-	
+
+## Overview
+`make commands` provides quick overview of available commands  
