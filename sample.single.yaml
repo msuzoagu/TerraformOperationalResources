@@ -1,0 +1,26 @@
+single:
+  region: 
+  profile: 
+  maxSessionDuration: 
+  
+  lockTableArn: 
+  stateBucketArn: 
+  logBucket: 
+  lockTable: 
+  stateBucket: 
+
+  adminRoleId: 
+  adminRoleName: 
+
+  operationalResourcesRole: 
+  operationalResourcesPolicy: 
+  
+  groupName:
+  groupPolicy:
+  powerUserPolicyArn:
+  
+  user:
+    name:
+    tagKey:
+    tagValue:
+    policyName:

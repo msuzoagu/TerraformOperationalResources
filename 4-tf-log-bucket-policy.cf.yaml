@@ -18,7 +18,7 @@ Rules:
       - Assert: !Equals 
         - !Ref AWS::AccountId
         - !Ref OperationalResourcesAccountId
-        AssertDescription: "resources must be created in Terraform account"
+        AssertDescription: "resources must be created in operational resources  account"
 
 Resources: 
   LogBucketPolicy:

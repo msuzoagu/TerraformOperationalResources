@@ -18,7 +18,6 @@ Parameters:
     Type: String
 
 Conditions: 
-  #Without this condition, passing in blank Env results in error
   PermitEmptyEnv: !Not [!Equals ["", !Ref Env]] 
 
 Rules: 
@@ -27,7 +26,7 @@ Rules:
       - Assert: !Equals 
         - !Ref AWS::AccountId
         - !Ref OperationalResourcesAccountId
-        AssertDescription: "resources must be created in Terraform account"
+        AssertDescription: "resources must be created in OperationalResourcesAccount"
 
 Resources:
   LogBucket:
@@ -105,3 +104,4 @@ Outputs:
     Value: !GetAtt StateBucket.Arn
     Export:
       Name: !Sub "${Env}StateBucketArn"
+

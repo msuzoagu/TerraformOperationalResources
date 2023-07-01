@@ -2,15 +2,15 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: create group whose members can run terraform commands
 
 Parameters:
-  PowerUserPolicyArn:
-    Type: String
-    Description: can be an empty string therefore is an optional parameter
   GroupName:
     Type: String
-  TfStateRoleName:
+  OperationalResourcesRole:
     Type: String
   GroupPolicyName:
     Type: String
+  PowerUserPolicyArn:
+    Type: String
+    Description: can be an empty string therefore is an optional parameter
   ResourceAccessorAccountId:
     Type: String
   OperationalResourcesAccountId:
@@ -51,7 +51,7 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       ManagedPolicyName: !Ref GroupPolicyName 
-      Description: !Sub "grants READ/WRITE permissions to terraform operational resources by assuming ${TfStateRoleName}"
+      Description: !Sub "grants READ/WRITE permissions to terraform operational resources by assuming ${OperationalResourcesRole}"
       PolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -60,4 +60,4 @@ Resources:
             Action: 
               - 'sts:AssumeRole'
             Resource:
-              - !Sub "arn:aws:iam::${OperationalResourcesAccountId}:role/${TfStateRoleName}"   
+              - !Sub "arn:aws:iam::${OperationalResourcesAccountId}:role/${OperationalResourcesRole}"   

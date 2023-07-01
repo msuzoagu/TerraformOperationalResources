@@ -39,7 +39,7 @@ If you are interested, you can read my [post]() outlining how I use this to get 
 
 6. Existence of named profiles in `$HOME/.aws/config`. Edits can be made to accomodate your needs. 
 
-7. `vars.yaml` configuration file. Use [`sample.env.yaml`](https://github.com/msuzoagu/TerraformOperationalResources/blob/8b8668a46c7baf29ed8b19b5cfbb14b76cea06ab/sample.env.yaml) as a template.
+7. Depending on your aws account setup, you will need either a `single.yaml` or a `multiple.yaml` configuration file. See [sample.single.yaml](https://github.com/msuzoagu/TerraformOperationalResources/blob/8b8668a46c7baf29ed8b19b5cfbb14b76cea06ab/simple.yaml) or [sample.multiple.yaml]()for samples.
 
 
 ## AWS Account Setup: Single vs Multiple
@@ -50,7 +50,7 @@ Almost all commands rely on the presence/absence of `env=${arg}` flag to determi
 
 	* with `env=${arg}` flag, multiple accounts setup is presumed
 
-The exceptions, __make tf-state-Role__ and __make group__ rely on the value of `setup=${arg}` flag.
+The exceptions, __make tf-operational-resources-role__ and __make group__ rely on the value of `setup=${arg}` flag.
 
 >Important Note: the value of env=${arg} arg is used to: 
 > * determine the workload account (development, staging, etc) 
@@ -60,49 +60,50 @@ The exceptions, __make tf-state-Role__ and __make group__ rely on the value of `
 ## Limitations/Todo
 At the moment, this template does not implement the use of [Cloudformation Macros](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/template-macros.html), which I believe is the only way to handle dynamic creation of resources. 
 
-Therefore some templates, for example [__1Tf-state-role.cf.yaml__](https://github.com/msuzoagu/TerraformOperationalResources/blob/8b8668a46c7baf29ed8b19b5cfbb14b76cea06ab/1Tf-state-role.cf.yaml), need to be edited before use. 
+Therefore some templates, for example [__1-tf-operational-resources-role.cf.yaml__](https://github.com/msuzoagu/TerraformOperationalResources/blob/8b8668a46c7baf29ed8b19b5cfbb14b76cea06ab/1-tf-operational-resources-role.cf.yaml), need to be edited before use. 
 
 Time permitting, will introduce the use of macros.
 
 
-## Make Commands
+## Make Commands: Single and Multiple Account Setups
 List of available commands is displayed via `make list`
 
 1. __make tf-operational-resources__: adds operational resources 
 	
 	+ relies on the presence/absence of `env=${arg}` flag
 	
-	+ when `env` flag is not set, a single aws account setup is presumed and only a single set of operation resources are created in account specified by *.profile* section of configuration file
+	+ when `env` flag is not set, a single aws account setup is presumed and only a single set of operation resources are created in account specified by *.single.profile* section of configuration file
 	
-	+ when `env` flag is set, a multiple aws accounts setup is presumed and a unique set of terraform operational resources is created. For example, if `env=dev` then this command creates a statebucket, a logbucket, and a locktable 
-		* these operatonal resources are created in the account specified in *.${env}.log.profile* section of configuration file 
+	+ when `env` flag is set, a multiple aws accounts setup is presumed and a unique set of terraform operational resources is created. For example, if `env=dev` then this command creates a dev-statebucket, a dev-logbucket, and a dev-locktable 
+		* these operatonal resources are created in the account specified in *.multiple.log.profile* section of configuration file 
 		* the assumption is that all terraform operational resources (state buckets, log buckets, kms keys, and lock tables) are created in a separate AWS log account 
 
 
-2. __make tf-state-role__: creates a role users must assume to READ/WRITE terraform state
+2. __make tf-operational-resources-role__: creates a role users must assume to READ/WRITE terraform state
 	
 	+ requires a `setup` flag which must be one of "single" or "multiple"
-		* if a single account setup, role is created in account specified by *.profile* section of configuration file
+		* if a single account setup, role is created in account specified by *.single.profile* section of configuration file
 		
-		* if multiple account setup, role is created in account specified by the *.log.profile* section of configuration file
+		* if multiple account setup, role is created in account specified by the *.multiple.log.profile* section of configuration file
 	
 	+ requires StateBucketArns and LockTableArns exported in `make tf-operational-resources`
-			- when multiple accoount setup, edit template to include all StateBucketArns and LockTableArns; example provided in template
+			- when multiple account setup, edit template to include all StateBucketArns and LockTableArns; example provided in template
 
-3. __make group__: creates a group users must belong to in order to assume the role created by `make tf-state-role`
+3. __make group__: creates a group users must belong to in order to assume the role created by `make tf-operational-resources-role`
 	
 	+ requires a `setup` flag which must be one of "single" or "multiple"
-		* if a single account setup, group is created in account specified by *.profile* section of configuration file
+		* if a single account setup, group is created in account specified by *single.profile* section of configuration file
 		
-		* if multiple account setup, group is created in account specified by the *.log.profile* section of configuration file
+		* if multiple account setup, group is created in account specified by the *.multiple.log.profile* section of configuration file
 
 
 4. __make user__: creates and adds a user to the group created by `make group`
 	
 	+ requires a `setup` flag which must be one of "single" or "multiple"
-		* if a single account setup, group is created in account specified by *.profile* section of configuration file
+		* if a single account setup, group is created in account specified by *.single.profile* section of configuration file
 		
-		* if multiple account setup, group is created in account specified by the *.log.profile* section of configuration file
+		* if multiple account setup, group is created in account specified by the *.multiple.iam.profile* section of configuration file. 
+			- the assumption is that all users are created/managed in a separate AWS account 
 
 
 5. __make tf-log-bucket-policy__: adds bucket policy to terraform log buckets
@@ -118,13 +119,19 @@ List of available commands is displayed via `make list`
 	+ uses output(s) exported by `make tf-operational-resources` 
 
 
-7. __make tf-workload-role__: adds a role to a workload account
+## Make Commands: Multiple Account Setup Only
+
+The following commands apply only to a multi-aws-account setup
+
+1. __make tf-workload-role__: adds a role to a workload account
 	
-	+ relies on `env` flag to determine what workload account role grants access to
+	+ relies on `env` flag to determine: 
+		* what aws account the role is created in
 	
 
-8. *make tf-workload-policy*: adds policy to group created by `make group`
+2. __make tf-workload-policy__: adds policy to group created by `make group`
 
-	+ relies on `env` flag to determine what workload account to create policy for
+	+ relies on `env` flag to determine: 
+		* what workload accounts group members can create resources in via terraform 
 
 	

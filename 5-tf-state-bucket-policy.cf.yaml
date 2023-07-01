@@ -5,19 +5,17 @@ Parameters:
   Env: 
     Type: String
     Description: Used to differentiate workload accounts
-  Setup:
-    Type: String
   Username:
+    Type: String
+  RoleName: 
     Type: String
   AdminRoleId:
     Type: String  
   AdminRoleName:
     Type: String
-  ValueOfUserTag:
+  UserTagValue:
     Type: String
   StateBucketName:
-    Type: String
-  TfStateRoleName: 
     Type: String
   ResourceAccessorAccountId:
     Type: String
@@ -26,8 +24,6 @@ Parameters:
 
 Conditions: 
   PermitEmptyEnv: !Not [!Equals ["", !Ref Env]] 
-  isSingleAccountSetup: !Equals ["single", !Ref Setup]
-  isMultiAccountSetup: !Equals ["multiple", !Ref Setup]   
 
 Rules: 
   Deployment: 
@@ -35,7 +31,7 @@ Rules:
       - Assert: !Equals 
         - !Ref AWS::AccountId
         - !Ref OperationalResourcesAccountId
-        AssertDescription: "resources must be created in log account"
+        AssertDescription: "resources must be created in operational resources account"
 
 
 Resources: 
@@ -88,22 +84,16 @@ Resources:
           Condition:
             StringNotLike:
               aws:userId:
-                - Fn::If:
-                  - isSingleAccountSetup
-                  - !Sub
-                    - '${SingleSetupRoleId}:*'
-                    - SingleSetupRoleId: !ImportValue SnglTfStateRoleId
-                  - !Ref 'AWS::NoValue'
-                - Fn::If:
-                  - isMultiAccountSetup
-                  - !Sub
-                    - '${MultipleSetupRoleId}:*'
-                    - MultipleSetupRoleId: !ImportValue MultiTfStateRoleId
-                  - !Ref 'AWS::NoValue'
+                - !Join
+                  - ''
+                  - - Fn::ImportValue: OperationalResourcesRoleId
+                    - ':*'
+
                 - !Ref AWS::AccountId
                 - !Sub
                   - '${AccountId}:*'
                   - AccountId: !Ref AWS::AccountId
+                
                 - !Sub 
                   - '${AdminRoleId}:*'
                   - AdminRoleId: !Ref AdminRoleId
@@ -115,7 +105,7 @@ Resources:
         ## that used to create Cloudformation Stacks.
         ##
         ## Note: Without this policy, the next policy locks 
-        ## all users/principals/roles out of bucket and grants
+        ## all users/principals/roles out of bucket BUT grants
         ## access to only the role used to run terraform, which 
         ## is turn is limited to only READ/WRITE access. Thus 
         ## this rule is needed to have administrative control
@@ -147,7 +137,7 @@ Resources:
             - 's3:GetBucketVersioning'
           Principal: 
             AWS: 
-              - !Sub "arn:aws:iam::${OperationalResourcesAccountId}:role/${TfStateRoleName}"
+              - !Sub "arn:aws:iam::${OperationalResourcesAccountId}:role/${RoleName}"
           Resource:
             - Fn::ImportValue: !Sub "${Env}StateBucketArn"
             - !Join
@@ -181,7 +171,7 @@ Resources:
               aws:PrincipalType:
                 - "User"                
               aws:PrincipalTag/Terraformers:
-                - !Ref ValueOfUserTag
+                - !Ref UserTagValue
           Resource: 
             - Fn::ImportValue: !Sub "${Env}StateBucketArn"
             - !Join

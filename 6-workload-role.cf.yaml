@@ -1,17 +1,17 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: creates a role in a workload account that users need to assume in order to create resourcs, via terraform, within the workload account
+Description: creates a role in a workload account that users need to assume to create resourcs, via terraform, in the workload account
 
 
 Parameters:
+  MaxSession:
+    Type: String
+  UserTagValue:
+    Type: String
+  WorkloadRoleName:
+    Type: String
   WorkloadAccountId:
     Type: String
   ResourceAccessorAccountId:
-    Type: String
-  TfStateRoleName:
-    Type: String
-  MaxSession:
-    Type: String
-  ValueOfUserTag:
     Type: String
 
 
@@ -21,7 +21,7 @@ Rules:
       - Assert: !Equals
         - !Ref AWS::AccountId
         - !Ref WorkloadAccountId 
-        AssertDescription: 'must be deployed in trusting account'
+        AssertDescription: 'must be deployed in a workload account'
 
 Resources:
   Role:
@@ -29,7 +29,7 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain 
     Properties:
-      RoleName: !Ref TfStateRoleName
+      RoleName: !Ref WorkloadRoleName
       Description: assume role to create resources via terraform
       MaxSessionDuration: !Ref MaxSession
       AssumeRolePolicyDocument: 
@@ -48,6 +48,6 @@ Resources:
                   - 'User'
               StringLike: 
                 aws:PrincipalTag/Terraformers:
-                  - !Ref ValueOfUserTag
+                  - !Ref UserTagValue
                 sts:RoleSessionName: 
                   - '${aws:username}'
