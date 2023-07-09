@@ -220,7 +220,7 @@ tf-state-bucket-policy:
 		--output json\
 		--profile ${singleAccountProfile}\
 		--stack-name add-tf-statebucket-policy\
-		--template-file tf-state-bucket-policy.cf.yaml\
+		--template-file 5-tf-state-bucket-policy.cf.yaml\
 		--region $(shell yq e '.single.region' single.yaml)\
 		--parameter-overrides\
 		Env=${env}\
@@ -239,7 +239,7 @@ tf-state-bucket-policy:
 	aws cloudformation deploy\
 		--output json\
 		--profile ${logProfile}\
-		--template-file tf-state-bucket-policy.cf.yaml\
+		--template-file 5-tf-state-bucket-policy.cf.yaml\
 		--stack-name add-${env}-tf-statebucket-policy\
 		--region $(shell yq e '.multiple.${env}.region' multiple.yaml)\
 		--parameter-overrides\
