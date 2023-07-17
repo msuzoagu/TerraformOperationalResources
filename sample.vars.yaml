@@ -1,0 +1,43 @@
+project_value: 
+  env_value:
+    session:
+    region: 
+    profile:
+    logBucket:
+    lockTable:
+    stateBucket:
+  log:
+    region: 
+    session:
+    profile:
+    lockTableArns:
+    stateBucketArns:
+    role:
+      name: 
+      trustPolicyName:
+  iam: #where users are created
+    region:
+    profile:
+  user:
+    name: 
+    tagKey: 
+    tagValue: 
+    policyName: 
+  group:
+    name:
+    policies: 
+      - managePersonalData
+      - assumeTfReadWriteRole
+    policyArn: ""
+    assumeResourceRole: 
+  adminRoleId:
+  adminRoleName: OrganizationAccountAccessRole
+  maxSessionDuration: 
+  roles: 
+    backend:
+      name: 
+      trustPolicyName: 
+    resource:
+      name: 
+      policyName: 
+      powerUserArn: arn:aws:iam::aws:policy/PowerUserAccess    

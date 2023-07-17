@@ -3,22 +3,22 @@ Inspired by [Chris Kent](https://thirstydeveloper.io/), this repository implemen
 
 If you are interested, you can read my [post]() outlining how I use this to get projects up and running.
 
+## Overview
+Run __make help__ for quick overview of available commands  
 
 ## Assumptions
 
 1. AWS Account Setup
 
-	This template can be adapted to suit either a [__Single AWS Account Setup__](https://docs.aws.amazon.com/whitepapers/latest/organizing-your-aws-environment/single-aws-account.html) or a [__Multiple AWS Accounts Setup__](https://docs.aws.amazon.com/whitepapers/latest/organizing-your-aws-environment/benefits-of-using-multiple-aws-accounts.html). 
+	This template assumes a [__Multiple AWS Accounts Setup__](https://docs.aws.amazon.com/whitepapers/latest/organizing-your-aws-environment/benefits-of-using-multiple-aws-accounts.html). 
 
-	Multiple Accounts can be manages as separate entities but I personally find creating and managing accounts via [AWS Organizations](https://docs.aws.amazon.com/controltower/latest/userguide/organizations.html) easiest.  The ability to access member accounts as an Admin user via [OrganizationAccountAccessRole](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_accounts_access.html) makes it easy to create the initial operational resources needed to get started codifying infrastructure with Terraform. 
+	Multiple Accounts can be manages as separate entities but I find creating and managing accounts via [AWS Organizations](https://docs.aws.amazon.com/controltower/latest/userguide/organizations.html) easiest.  The ability to access member accounts as an Admin user via [OrganizationAccountAccessRole](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_accounts_access.html) makes it easy to create the initial operational resources needed to get started codifying infrastructure with Terraform. 
 
-2. Workload Accounts 
+2. Resource Accounts 
 
-	> A workload is defined as "as a collection of resources and code that delivers business value, such as a customer-facing application or a backend process." 
+	This template assumes an adherence to environment-based deployments (development, staging, etc ) and the existence of corresponding environment-based resource accounts. 
 
-	This template assumes an adherence to environment-based deployments (development, staging, etc ) and the existence of corresponding environment-based workload accounts. 
-
-	I define a workload account as a environment-based AWS Account (for example, a development account; which would be an aws account where all development-related resouces like buckets, databases, etc are deployed). 
+	I define a resource account as a environment-based AWS Account. For example, a development account; which would be an aws account where all development-related resouces like apis, databases, etc are deployed. 
 
 3. Existing Resources
 
@@ -32,107 +32,57 @@ If you are interested, you can read my [post]() outlining how I use this to get 
 2. [jq](https://jqlang.github.io/jq/download/)
 
 3. [yq](https://github.com/mikefarah/yq#install). For quick instructions, read [this](https://www.sanderh.dev/parsing-YAML-files-using-yq/)
+ 
+4. AWS user with admin access in the [trusting account](https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_cross-account-with-roles.html). This is the user who will, via Cloudformation, deploy/create the Terraform backend resources. Or if using AWS Org, an admin user with [OrganizationAccountAccessRole](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_accounts_access.html) 
 
-4. [cfn-lint](https://github.com/aws-cloudformation/cfn-lint). 
+5. Existence of named profiles in `$HOME/.aws/config`. Edits can be made to accomodate your needs. 
 
-5. AWS user with admin access in the [trusting account](https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_cross-account-with-roles.html). This is the user who will, via Cloudformation, deploy/create the Terraform backend resources. Or if using AWS Org, an admin user with [OrganizationAccountAccessRole](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_accounts_access.html) 
-
-6. Existence of named profiles in `$HOME/.aws/config`. Edits can be made to accomodate your needs. 
-
-7. Depending on your aws account setup, you will need either a `single.yaml` or a `multiple.yaml` configuration file. See [sample.single.yaml](https://github.com/msuzoagu/TerraformOperationalResources/blob/main/sample.single.yaml) or [sample.multiple.yaml](https://github.com/msuzoagu/TerraformOperationalResources/blob/main/sample.multiple.yaml)for samples.
-
-
-## AWS Account Setup: Single vs Multiple
-
-Almost all commands rely on the presence/absence of `env=${arg}` flag to determine what AWS account setup to follow:
-
-	* without `env=${arg}` flag, single account setup is presumed 
-
-	* with `env=${arg}` flag, multiple accounts setup is presumed
-
-The exceptions, __make tf-operational-resources-role__ and __make group__ rely on the value of `setup=${arg}` flag.
-
->Important Note: the value of env=${arg} arg is used to: 
-> * determine the workload account (development, staging, etc) 
-> * construct the exported values of bucket names and arns, which are used in some of the stacks and thus introduces cross-stack dependencies
+6. a `vars.yaml` configuration file. See [sample.var.yaml](https://github.com/msuzoagu/TerraformOperationalResources/blob/main/sample.var.yaml) for sample.
 
 
 ## Limitations/Todo
-At the moment, this template does not implement the use of [Cloudformation Macros](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/template-macros.html), which I believe is the only way to handle dynamic creation of resources. 
+At the moment, this template does not implement the use of [Cloudformation Macros](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/template-macros.html), which I believe is the only way to create multiple resources of the same type without having to repeat the same resource block.
 
-Therefore some templates, for example [__1-tf-operational-resources-role.cf.yaml__](https://github.com/msuzoagu/TerraformOperationalResources/blob/main/0-tf-operational-resources.cf.yaml), need to be edited before use. 
+Therefore some templates, for example those that deal with the creation of roles and bucket policies, have to be edited each time permissions have to granted or revoked. 
 
 Time permitting, will introduce the use of macros.
 
+## Make Commands
 
-## Make Commands: Single Account and Multiple Accounts Setups
-
-1. __make tf-operational-resources__: adds operational resources 
-	
-	+ relies on the presence/absence of `env=${arg}` flag
-	
-	+ when `env` flag is not set, a single aws account setup is presumed and only a single set of operation resources are created in account specified by *.single.profile* section of configuration file
-	
-	+ when `env` flag is set, a multiple aws accounts setup is presumed and a unique set of terraform operational resources is created. For example, if `env=dev` then this command creates a dev-statebucket, a dev-logbucket, and a dev-locktable 
-		* these operatonal resources are created in the account specified in *.multiple.log.profile* section of configuration file 
-		* the assumption is that all terraform operational resources (state buckets, log buckets, kms keys, and lock tables) are created in a separate AWS log account 
+All commands rely on the presence of both `env=${arg}` and `project=${arg}` flags to determine what values to pull from the `vars.yaml` configuration file.
 
 
-2. __make tf-operational-resources-role__: creates a role users must assume to READ/WRITE terraform state
-	
-	+ requires a `setup` flag which must be one of "single" or "multiple"
-		* if a single account setup, role is created in account specified by *.single.profile* section of configuration file
-		
-		* if multiple account setup, role is created in account specified by the *.multiple.log.profile* section of configuration file
-	
-	+ requires StateBucketArns and LockTableArns exported in `make tf-operational-resources`
-			- when multiple account setup, edit template to include all StateBucketArns and LockTableArns; example provided in template
-
-3. __make group__: creates a group users must belong to in order to assume the role created by `make tf-operational-resources-role`
-	
-	+ requires a `setup` flag which must be one of "single" or "multiple"
-		* if a single account setup, group is created in account specified by *single.profile* section of configuration file
-		
-		* if multiple account setup, group is created in account specified by the *.multiple.log.profile* section of configuration file
+1. __make operationalResourceSet__: creates operational resources in the account specified in *.${project}.${env}.log.profile* section of configuration file (assuming that all Terraform operational resources are created in a separate AWS log account )
+	+ if `env=dev` this command creates a set of operational resources, namely _dev-statebucket, dev-logbucket, and dev-locktable_
+	+ for each set of operational resources created, it outputs a ***StateBucketArn and LockTableArn*** 
+	+ exported names must be added to *${project}.log.StateBucketArns* and  *${project}.log.lockTableArns* sections of configuration file before running `make backendRole`
 
 
-4. __make user__: creates and adds a user to the group created by `make group`
-	
-	+ requires a `setup` flag which must be one of "single" or "multiple"
-		* if a single account setup, group is created in account specified by *.single.profile* section of configuration file
-		
-		* if multiple account setup, group is created in account specified by the *.multiple.iam.profile* section of configuration file. 
-			- the assumption is that all users are created/managed in a separate AWS account 
+2. __make backendRole__: creates a role and a policy in account specified in *.{project}.log.profile* section of configuration file: 
+	+ policy attached to role grants any user who assumes the role READ/WRITE access to every set of operational resources created
+	+ therefore when a new set of operational resources is create, the policy needs to be updated to include the newly exported ***StateBucketArn and LockTableArn***
 
 
-5. __make tf-log-bucket-policy__: adds bucket policy to terraform log buckets
-	
-	+ relies on the presence/absence of `env=${arg}` flag
-	+ see notes under *make tf-operational-resources* 
+3. __make group__: creates a group, and 2 poliies, in account specified in  *.{project}.iam.profile* section of configuration file
+	+ AssumeRolePolicy allows group members to assume *backendRole*
+	+ ManageDataPolicy allows group members to manage their data
+		* ManageDataPolicy is an optional policy (you can omit it )
+
+4. __make user__: creates a user in account specified in *.{project}.iam.profile* section of configuration file
+	+ user is added to group created by `make group`
+
+5. __make logBucketPolicy__: adds bucket policy to Terraform log bucket created by *make operationalResourceSet*
+	+ see notes under *make operationalResourceSet* above
 	
 
-6. __make tf-state-bucket-policy__: adds a bucket policy to each state bucket created by `make tf-operational-resources`
-	
-	+ relies on the presence/absence of `env=${arg}` flag
-	+ see notes under *make tf-operational-resources* 
-	+ uses output(s) exported by `make tf-operational-resources` 
+6. __make stateBucketPolicy__: adds a bucket policy to Terraform state bucket created by *make operationalResourceSet* 
+	+ see notes under *make operationalResourceSet* above
+	+ uses output(s) exported by *make operationalResourceSet*
 
+7. __make resourceRole__: creates a role in an environment-based AWS Resource Account specified in *.${project}.${env}.profile* section of configuration file 
+	+  user created by *make user* assumes this role to create resources, via Terraform, in the resource account
 
-## Make Commands: Multiple Account Setup Only
-
-The following commands apply only to a multiple-aws-accounts setup
-
-1. __make tf-workload-role__: adds a role to a workload account
-	
-	+ relies on `env` flag to determine: 
-		* what aws account the role is created in
-	
-
-2. __make tf-workload-policy__: adds policy to group created by `make group`
-
-	+ relies on `env` flag to determine: 
-		* what workload accounts group members can create resources in via terraform 
-
-
-## Overview
-`make commands` provides quick overview of available commands  
+8. __make resourceRolePolicy__: creates and attaches a policy to group created by *make group*
+	+ attached policy grants group members permission to assume *resourceRole*	in a *resource account*
+	+ Due to the fact that we are using multi-account setup, the only way to update this policy with the arn of any`resourceRole` created after the initial setup is via the console or awscli. 
+		* Cross-account and cross-region export/imports are not supported in CloudFormation. If you want to have everything done automatically, you would have to develop a custom resource in stack B in the form of a lambda function. The function would have to be able to access and query the stack in A in different account, and return desired attributes to stack B.[source](https://stackoverflow.com/questions/66040228/cross-stack-reference-from-different-aws-accounts)

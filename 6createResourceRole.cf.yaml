@@ -1,0 +1,146 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: creates a role in a resource account that users need to assume to create resourcs, via Terraform, in resource account
+
+
+Parameters:
+  Session:
+    Type: String
+  PolicyName:
+    Type: String
+  PowerUserArn:
+    Type: String
+    Description: optional parameter
+  ResourceRoleName:
+    Type: String    
+  TrustingAccountId:
+    Type: String
+  TrustedAccountId:
+    Type: String
+  ValueForPrincipalTag:
+    Type: String
+
+Conditions: 
+  ParamIsEmpty: !Equals ["", !Ref PowerUserArn]
+  PermitEmptyParam: !Not [!Equals ["", !Ref PowerUserArn]]
+
+Rules:
+  Deployment:
+    Assertions:
+      - Assert: !Equals
+        - !Ref AWS::AccountId
+        - !Ref TrustingAccountId 
+        AssertDescription: 'must be deployed in a workload account'
+
+Resources:
+  Role:
+    Type: 'AWS::IAM::Role'
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain 
+    Properties:
+      Description: assume role to create resources via terraform
+      MaxSessionDuration: !Ref Session
+      RoleName: !Ref ResourceRoleName
+      ManagedPolicyArns: 
+        - Fn::If: 
+          - ParamIsEmpty 
+          - !Ref 'AWS::NoValue'
+          - !Ref PowerUserArn
+        - !Ref RolePermissions
+      AssumeRolePolicyDocument: 
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow 
+            Principal:
+              AWS: !Ref TrustedAccountId # Trusted Account
+            Action: 
+              - 'sts:AssumeRole'
+            Condition: 
+              Bool: 
+                aws:MultiFactorAuthPresent: true
+              StringEquals: 
+                aws:PrincipalType: 
+                  - 'User'
+              StringLike: 
+                aws:PrincipalTag/Terraformers:
+                  - !Ref ValueForPrincipalTag
+                sts:RoleSessionName: 
+                  - '${aws:username}'
+
+  RolePermissions:
+    Type: 'AWS::IAM::ManagedPolicy'
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties: 
+      Description: adds permissions missing from PowerUser
+      ManagedPolicyName: !Ref PolicyName
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: ManageIamPolicies
+            Effect: Allow
+            Resource: "*"
+            Action:
+              - iam:GetPolicy
+              - iam:TagPolicy
+              - iam:UntagPolicy
+              - iam:ListPolicies
+              - iam:CreatePolicy
+              - iam:DeletePolicy
+              - iam:GetPolicyVersion
+              - iam:ListPolicyVersions
+          - Sid: ManageIamGroups
+            Effect: Allow
+            Resource: "*"
+            Action:
+              - iam:GetGroup
+              - iam:UpdateGroup
+              - iam:ListGroups
+              - iam:DeleteGroup
+              - iam:CreateGroup
+              - iam:GetGroupPolicy
+              - iam:AddUserToGroup
+              - iam:AttachGroupPolicy
+              - iam:DeleteGroupPolicy
+              - iam:DetachGroupPolicy
+              - iam:PutGroupPolicy
+              - iam:RemoveUserFromGroup
+              - iam:ListGroupsForUser
+              - iam:ListGroupPolicies
+              - iam:ListAttachedGroupPolicies        
+          - Sid: ManageIamRoles
+            Effect: Allow
+            Resource: "*"
+            Action:
+              - iam:TagRole
+              - iam:GetRole
+              - iam:CreateRole
+              - iam:DeleteRole
+              - iam:GetRolePolicy
+              - iam:DetachRolePolicy
+              - iam:ListRolePolicies
+              - iam:AttachRolePolicy
+              - iam:DeleteRolePolicy
+              - iam:UpdateAssumeRolePolicy
+              - iam:ListAttachedRolePolicies        
+          - Sid: ManageInstanceProfiles
+            Effect: Allow
+            Resource: "*"
+            Action:
+              - iam:GetInstanceProfile
+              - iam:TagInstanceProfile
+              - iam:untagInstanceProfile
+              - iam:CreateInstanceProfile
+              - iam:DeleteInstanceProfile
+              - iam:AddRoleToInstanceProfile
+              - iam:ListInstanceProfilesForRole
+              - iam:RemoveRoleFromInstanceProfile
+          - Sid: AllowIamPassRoleToService
+            Resource: "*"
+            Effect: Allow
+            Action:
+              - iam:PassRole          
+            Condition:
+              StringEquals:
+                iam:PassedToService:
+                - cloudwatch.amazonaws.com
+                - ec2.amazonaws.com

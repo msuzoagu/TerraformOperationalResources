@@ -1,12 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: create terraform operational resources
+Description: create Terraform operational resources 
 
 Parameters: 
   Env: 
     Type: String
-    Description: >-
-      Optional parameter used to differentiate workload resources. For example dev-tfStateBucket vs test-tfStateBucket
   Region: 
+    Type: String
+  Project:
     Type: String
   LogBucketName:
     Type: String
@@ -14,19 +14,16 @@ Parameters:
     Type: String
   StateBucketName:
     Type: String
-  OperationalResourcesAccountId:
-    Type: String
-
-Conditions: 
-  PermitEmptyEnv: !Not [!Equals ["", !Ref Env]] 
+  LogAccountId:
+    Type: String 
 
 Rules: 
   Deployment: 
     Assertions:
       - Assert: !Equals 
         - !Ref AWS::AccountId
-        - !Ref OperationalResourcesAccountId
-        AssertDescription: "resources must be created in OperationalResourcesAccount"
+        - !Ref LogAccountId
+        AssertDescription: "resources must be created in OperationalResources account"
 
 Resources:
   LogBucket:
@@ -81,7 +78,7 @@ Outputs:
     Description: LogBucket Arn
     Value: !GetAtt LogBucket.Arn
     Export:
-      Name: !Sub "${Env}LogBucketArn"
+      Name: !Sub "${Env}${Project}LogBucketArn"
 
   LockTableName:
     Description: LockTable Name
@@ -92,7 +89,7 @@ Outputs:
     Description: LockTable Arn
     Value: !GetAtt LockTable.Arn
     Export:
-      Name: !Sub "${Env}LockTableArn"
+      Name: !Sub "${Env}${Project}LockTableArn"
 
   StateBucketName:
     Description: StateBucket Name
@@ -103,5 +100,5 @@ Outputs:
     Description: StateBucket Arn
     Value: !GetAtt StateBucket.Arn
     Export:
-      Name: !Sub "${Env}StateBucketArn"
+      Name: !Sub "${Env}${Project}StateBucketArn"
 

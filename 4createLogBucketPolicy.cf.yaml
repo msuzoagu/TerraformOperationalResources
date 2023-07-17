@@ -1,23 +1,22 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: create terraform logBucket policy
+Description: create Terraform logBucket policy
 
 Parameters:
   Env:
     Type: String
+  Project:
+    Type: String    
   LogBucketName:
     Type: String
-  OperationalResourcesAccountId:
+  LogAccountId:
     Type: String
-
-Conditions: 
-  PermitEmptyEnv: !Not [!Equals ["", !Ref Env]] 
 
 Rules: 
   Deployment: 
     Assertions:
       - Assert: !Equals 
         - !Ref AWS::AccountId
-        - !Ref OperationalResourcesAccountId
+        - !Ref LogAccountId
         AssertDescription: "resources must be created in operational resources  account"
 
 Resources: 
@@ -36,12 +35,12 @@ Resources:
               Service: logging.s3.amazonaws.com
             Resource: !Join
               - ''
-              - - Fn::ImportValue: !Sub "${Env}LogBucketArn"
+              - - Fn::ImportValue: !Sub "${Env}${Project}LogBucketArn"
                 - /TerraformStateLogs/*
             Condition:
               ArnLike:
                 aws:SourceArn: 
-                  Fn::ImportValue: 
-                    !Sub "${Env}StateBucketArn"
+                  Fn::ImportValue: !Sub "${Env}${Project}StateBucketArn"
+
               StringEquals:
                 aws:SourceAccount: !Ref AWS::AccountId

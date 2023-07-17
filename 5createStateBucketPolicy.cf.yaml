@@ -1,25 +1,27 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: create terraform stateBucket policy
+Description: create Terraform stateBucket policy
 
 Parameters:
   Env: 
     Type: String
     Description: Used to differentiate workload accounts
-  Username:
+  Project:
     Type: String
-  RoleName: 
+  Username:
     Type: String
   AdminRoleId:
     Type: String  
   AdminRoleName:
     Type: String
-  UserTagValue:
+  BackendRoleName: 
+    Type: String
+  ValueForPrincipalTag:
     Type: String
   StateBucketName:
     Type: String
-  ResourceAccessorAccountId:
+  TrustedAccountId:
     Type: String
-  OperationalResourcesAccountId:
+  LogAccountId:
     Type: String
 
 Conditions: 
@@ -30,7 +32,7 @@ Rules:
     Assertions:
       - Assert: !Equals 
         - !Ref AWS::AccountId
-        - !Ref OperationalResourcesAccountId
+        - !Ref LogAccountId
         AssertDescription: "resources must be created in operational resources account"
 
 
@@ -52,7 +54,7 @@ Resources:
           Action: '*'
           Principal: '*'
           Resource: 
-            - Fn::ImportValue: !Sub "${Env}StateBucketArn"
+            - Fn::ImportValue: !Sub "${Env}${Project}StateBucketArn"
           Condition:
             Bool:
               'aws:SecureTransport': false
@@ -76,17 +78,17 @@ Resources:
           Action: 'S3:*'
           Principal: '*'
           Resource: 
-            - Fn::ImportValue: !Sub "${Env}StateBucketArn"
+            - Fn::ImportValue: !Sub "${Env}${Project}StateBucketArn"
             - !Join
               - ''
-              - - Fn::ImportValue: !Sub "${Env}StateBucketArn"
+              - - Fn::ImportValue: !Sub "${Env}${Project}StateBucketArn"
                 - '/*'
           Condition:
             StringNotLike:
               aws:userId:
                 - !Join
                   - ''
-                  - - Fn::ImportValue: OperationalResourcesRoleId
+                  - - Fn::ImportValue: BackendRoleId
                     - ':*'
 
                 - !Ref AWS::AccountId
@@ -99,7 +101,7 @@ Resources:
                   - AdminRoleId: !Ref AdminRoleId
             ForAnyValue:StringNotLike:
               aws:PrincipalArn:
-                - !Sub "arn:aws:iam::${ResourceAccessorAccountId}:user/${Username}"
+                - !Sub "arn:aws:iam::${TrustedAccountId}:user/${Username}"
         #######################################################
         ## Grant S3FullAccess to AdminRole; role 
         ## that used to create Cloudformation Stacks.
@@ -116,12 +118,12 @@ Resources:
           Action: 's3:*'
           Principal:
             AWS: 
-              - !Sub "arn:aws:iam::${OperationalResourcesAccountId}:role/${AdminRoleName}"
+              - !Sub "arn:aws:iam::${LogAccountId}:role/${AdminRoleName}"
           Resource: 
-            - Fn::ImportValue: !Sub "${Env}StateBucketArn"
+            - Fn::ImportValue: !Sub "${Env}${Project}StateBucketArn"
             - !Join
               - ''
-              - - Fn::ImportValue: !Sub "${Env}StateBucketArn"
+              - - Fn::ImportValue: !Sub "${Env}${Project}StateBucketArn"
                 - '/*'
         #####################################################
         ## If principal is an assumed role and the assumed 
@@ -137,12 +139,12 @@ Resources:
             - 's3:GetBucketVersioning'
           Principal: 
             AWS: 
-              - !Sub "arn:aws:iam::${OperationalResourcesAccountId}:role/${RoleName}"
+              - !Sub "arn:aws:iam::${LogAccountId}:role/${BackendRoleName}"
           Resource:
-            - Fn::ImportValue: !Sub "${Env}StateBucketArn"
+            - Fn::ImportValue: !Sub "${Env}${Project}StateBucketArn"
             - !Join
               - ''
-              - - Fn::ImportValue: !Sub "${Env}StateBucketArn"
+              - - Fn::ImportValue: !Sub "${Env}${Project}StateBucketArn"
                 - '/*'
         #####################################################
         ## Restrict 's3:DeleteObject', which enables the 
@@ -163,7 +165,7 @@ Resources:
             - 's3:DeleteObject'
           Principal: 
             AWS:
-              - !Sub "arn:aws:iam::${ResourceAccessorAccountId}:root"
+              - !Sub "arn:aws:iam::${TrustedAccountId}:root"
           Condition:
             Bool: 
               aws:MultiFactorAuthPresent: true
@@ -171,10 +173,10 @@ Resources:
               aws:PrincipalType:
                 - "User"                
               aws:PrincipalTag/Terraformers:
-                - !Ref UserTagValue
+                - !Ref ValueForPrincipalTag
           Resource: 
-            - Fn::ImportValue: !Sub "${Env}StateBucketArn"
+            - Fn::ImportValue: !Sub "${Env}${Project}StateBucketArn"
             - !Join
               - ''
-              - - Fn::ImportValue: !Sub "${Env}StateBucketArn"
+              - - Fn::ImportValue: !Sub "${Env}${Project}StateBucketArn"
                 - '/*'

@@ -1,4 +1,5 @@
 notes.md
+vars.yaml
 .DS_Store
-single.yaml
-multiple.yaml
+MissingTerraformPermissions.json
+ManagePersonalData.json

@@ -2,16 +2,12 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: create role users must assume to gain READ/WRITE access to Terraform OperationalResources
 
 Parameters: 
-  Setup: 
-    Type: String  
+  Session:
+    Type: String
   RoleName: 
     Type: String 
-  PolicyName:
-    Type: String
-  MaxSession:
-    Type: String
-  UserTagValue:
-    Type: String
+  LogAccountId:
+    Type: String    
   LockTableArns:
     Type: CommaDelimitedList
     Description: >-
@@ -21,34 +17,28 @@ Parameters:
     Description: >
       comma-delimited list of exported state bucket arns backendRole 
       is granted access to
-  ResourceAccessorAccountId:
-    Type: String
-  OperationalResourcesAccountId:
+  TrustedAccountId:
     Type: String
 
-
-Conditions: 
-  isSingleAccountSetup: !Equals ["single", !Ref Setup]
-  isMultiAccountSetup: !Equals ["multiple", !Ref Setup] 
-
-
+  ValueForPrincipalTag:
+    Type: String
 Rules:
   Deployment:
     Assertions:
       - Assert: !Equals
         - !Ref AWS::AccountId
-        - !Ref OperationalResourcesAccountId 
+        - !Ref LogAccountId 
         AssertDescription: "resources must be created in OperationalResources account"
 
 Resources:
-  OperationalResourcesRole: 
+  Role: 
     Type: 'AWS::IAM::Role'
     DeletionPolicy: Delete
-    UpdateReplacePolicy: Retain
+    UpdateReplacePolicy: Delete
     Properties: 
       RoleName: !Ref RoleName
       Description: assume to obtain access to Terraform Operational Resources
-      MaxSessionDuration: !Ref MaxSession
+      MaxSessionDuration: !Ref Session
       ManagedPolicyArns:
         - !Ref RolePolicy
       AssumeRolePolicyDocument: #trust policy for role
@@ -56,7 +46,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal: 
-              AWS: !Ref ResourceAccessorAccountId #TrustedAccount
+              AWS: !Ref TrustedAccountId #TrustedAccount
             Action:
               - 'sts:AssumeRole'
             Condition:
@@ -67,15 +57,15 @@ Resources:
                   - "User"
               StringLike:
                 aws:PrincipalTag/Terraformers:
-                  - !Ref UserTagValue
+                  - !Ref ValueForPrincipalTag
                 sts:RoleSessionName:
                   - '${aws:username}'
   RolePolicy:
     Type: 'AWS::IAM::ManagedPolicy'
     DeletionPolicy: Delete
-    UpdateReplacePolicy: Retain
+    UpdateReplacePolicy: Delete
     Properties: 
-      ManagedPolicyName: !Ref PolicyName 
+      ManagedPolicyName: TerraformStateFilesPermissions
       Description: grants read/write access to Terraform Operational Resources
       PolicyDocument:
         Version: 2012-10-17
@@ -85,11 +75,9 @@ Resources:
             Action: 
               - 's3:ListBucket'
               - 's3:GetBucketVersioning'
-            Resource:
+            Resource: 
+              ## add new StateBucketArns when new resource set is created 
               - Fn::ImportValue: !Select [0, !Ref StateBucketArns]
-              ## Uncomment to update resources list 
-              # - Fn::ImportValue: !Select [1, !Ref StateBucketArns]
-              # - Fn::ImportValue: !Select [2, !Ref StateBucketArns]
 
           - Sid: AllowStateReadWrite
             Effect: Allow
@@ -97,18 +85,11 @@ Resources:
               - 's3:GetObject'
               - 's3:PutObject'
             Resource: 
+            ## add new StateBucketArns when new resource set is created 
               - !Join 
                 - ''
                 - - Fn::ImportValue: !Select [0, !Ref StateBucketArns]
-                  - /*
-              # - !Join 
-              #   - ''
-              #   - - Fn::ImportValue: !Select [1, !Ref StateBucketArns]
-              #     - /*
-              # - !Join 
-              #   - ''
-              #   - - Fn::ImportValue: !Select [2, !Ref StateBucketArns]
-              #     - /*
+                  - /* 
           - Sid: AllowStateLockReadWrite
             Effect: Allow
             Action:
@@ -118,37 +99,18 @@ Resources:
               - 'dynamodb:DeleteItem'  
               - 'dynamodb:ListTagsOfResource'
             Resource: 
+            ## add new LockTableArns when new resource set is created               
               - Fn::ImportValue: !Select [0, !Ref LockTableArns]
-              # - Fn::ImportValue: !Select [1, !Ref LockTableArns]
-              # - Fn::ImportValue: !Select [2, !Ref LockTableArns]
 
-
-# make export name of outputs unique so that we can update both this stack and stacks that depend on it. Accomplished this by appending value of ${Setup} to 
 Outputs:
-  SingleAccountSetupRoleId:
-    Condition: isSingleAccountSetup
+  RoleId:
     Description: role id
-    Value: !GetAtt OperationalResourcesRole.RoleId
+    Value: !GetAtt Role.RoleId
     Export:
-      Name: OperationalResourcesRoleId
+      Name: BackendRoleId
 
-  SingleAccountSetupRoleArn:
-    Condition: isSingleAccountSetup
+  RoleArn:
     Description: role arn
-    Value: !GetAtt OperationalResourcesRole.Arn
+    Value: !GetAtt Role.Arn
     Export:
-      Name: OperationalResourcesRoleArn
-
-  MultiAccountSetupRoleId:
-    Condition: isMultiAccountSetup
-    Description: role id
-    Value: !GetAtt OperationalResourcesRole.RoleId
-    Export:
-       Name: OperationalResourcesRoleId
-
-  MultiAccountSetupRoleArn:
-    Condition: isMultiAccountSetup
-    Description: role arn
-    Value: !GetAtt OperationalResourcesRole.Arn
-    Export:
-       Name: OperationalResourcesRoleArn
+       Name: BackendRoleArn

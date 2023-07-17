@@ -1,0 +1,45 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: creates policy that grants principals permission to assume role in resource account
+
+Parameters:
+  GroupName:
+    Type: String
+  TrustingAccountId:
+    Type: String
+  PolicyName:
+    Type: String
+  TrustedAccountId:
+    Type: String  
+  ResourceAccountRoleName:
+    Type: String
+
+
+Rules:
+  Deployment:
+    Assertions:
+      - Assert: !Equals
+        - !Ref AWS::AccountId
+        - !Ref TrustedAccountId
+        AssertDescription: 'must be deployed in TrustedAccountId account'
+
+
+Resources:
+  GroupPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Properties:
+      Groups: 
+        - !Ref GroupName
+      ManagedPolicyName: !Ref PolicyName
+      Description: !Sub "assume ${ResourceAccountRoleName} in resource accounts"
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: !Sub "assume${ResourceAccountRoleName}"
+            Effect: Allow
+            Action:
+              - 'sts:AssumeRole'
+            Resource:
+              - !Sub "arn:aws:iam::${TrustingAccountId}:role/${ResourceAccountRoleName}"
+  
