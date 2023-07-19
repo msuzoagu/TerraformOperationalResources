@@ -78,6 +78,9 @@ Resources:
             Resource: 
               ## add new StateBucketArns when new resource set is created 
               - Fn::ImportValue: !Select [0, !Ref StateBucketArns]
+              - Fn::ImportValue: !Select [1, !Ref StateBucketArns]
+              - Fn::ImportValue: !Select [2, !Ref StateBucketArns]
+              - Fn::ImportValue: !Select [3, !Ref StateBucketArns]
 
           - Sid: AllowStateReadWrite
             Effect: Allow
@@ -90,6 +93,18 @@ Resources:
                 - ''
                 - - Fn::ImportValue: !Select [0, !Ref StateBucketArns]
                   - /* 
+              - !Join 
+                - ''
+                - - Fn::ImportValue: !Select [1, !Ref StateBucketArns]
+                  - /* 
+              - !Join 
+                - ''
+                - - Fn::ImportValue: !Select [2, !Ref StateBucketArns]
+                  - /* 
+              - !Join 
+                - ''
+                - - Fn::ImportValue: !Select [3, !Ref StateBucketArns]
+                  - /* 
           - Sid: AllowStateLockReadWrite
             Effect: Allow
             Action:
@@ -101,6 +116,9 @@ Resources:
             Resource: 
             ## add new LockTableArns when new resource set is created               
               - Fn::ImportValue: !Select [0, !Ref LockTableArns]
+              - Fn::ImportValue: !Select [1, !Ref LockTableArns]
+              - Fn::ImportValue: !Select [2, !Ref LockTableArns]
+              - Fn::ImportValue: !Select [3, !Ref LockTableArns]
 
 Outputs:
   RoleId:
