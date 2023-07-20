@@ -88,6 +88,7 @@ Resources:
               - iam:DeletePolicy
               - iam:GetPolicyVersion
               - iam:ListPolicyVersions
+              - iam:DeletePolicyVersion
               - iam:CreatePolicyVersion
           - Sid: ManageIamGroups
             Effect: Allow
