@@ -122,8 +122,9 @@ Resources:
               - iam:ListRolePolicies
               - iam:AttachRolePolicy
               - iam:DeleteRolePolicy
+              - iam:UpdateRoleDescription        
               - iam:UpdateAssumeRolePolicy
-              - iam:ListAttachedRolePolicies        
+              - iam:ListAttachedRolePolicies
           - Sid: ManageInstanceProfiles
             Effect: Allow
             Resource: "*"
